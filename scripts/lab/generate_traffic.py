@@ -56,14 +56,19 @@ def human(i: int):
     ua = random.choice(BROWSER_UAS)
     token = "cohort1"
     _req(f"/?ref={token}", ip, ua, referer=None)
-    time.sleep(random.uniform(0.4, 1.2))
-    # A real browser fetches the script, then posts a hash.
+    # A real browser fetches the deferred script and posts its hash on load,
+    # within a second -- that burst is genuine browser behaviour.
+    time.sleep(random.uniform(0.3, 0.9))
     _req("/microguard/fingerprint.js", ip, ua, referer="/")
     _req("/microguard/fp", ip, ua, referer="/", method="POST",
          body=json.dumps({"fingerprint_hash": f"{random.getrandbits(256):064x}"}).encode())
     prev = "/"
-    for page in random.sample(PAGES, k=random.randint(2, 4)):
-        time.sleep(random.uniform(0.8, 3.0))  # human dwell time
+    # Then the person reads. Real dwell time is seconds to tens of seconds per
+    # page; anything faster is a scraper. Short dwell is exactly what made an
+    # earlier version of this generator trip the >50 req/min rule and inflate
+    # the human false-positive rate, so it has to be realistic here.
+    for page in random.sample(PAGES, k=random.randint(3, 5)):
+        time.sleep(random.uniform(6.0, 18.0))
         _req(page, ip, ua, referer=prev)
         prev = page
     return ip
@@ -137,7 +142,7 @@ def main():
     ]
 
     log(f"humans={n_humans} scrapers={n_scrapers} credential={n_cred} + real tools")
-    with ThreadPoolExecutor(max_workers=16) as pool:
+    with ThreadPoolExecutor(max_workers=48) as pool:
         futs = []
         for cmd, ip, name in tool_jobs:
             truth[ip] = "bot"
