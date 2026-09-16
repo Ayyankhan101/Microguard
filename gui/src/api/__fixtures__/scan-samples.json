@@ -1,11 +1,6 @@
 {
   "samples": [
     {
-      "name": "all_access.log",
-      "bytes": 3731566,
-      "lines": 17757
-    },
-    {
       "name": "sample_access.log",
       "bytes": 2980,
       "lines": 20
