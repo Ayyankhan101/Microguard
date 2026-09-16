@@ -58,7 +58,7 @@ Written down now so the results can't be explained away afterwards:
 
 1. **Sample floor.** With fewer than 30 labeled humans **or** fewer than 30 labeled bots, the result is *inconclusive*. Report counts only; no rates, no threshold change. The report prints this itself.
 2. **Blocking may be enabled at threshold T only if humans flagged at T is 0/N.** A single real person blocked is a failure at that threshold. Pick the lowest threshold with 0 humans flagged, then read honeypot-only recall at that threshold.
-3. **The model earns its place only if** some score threshold with 0 humans flagged catches more honeypot-only bots than the `heuristic label is bot` row. If it doesn't, the finding is that the heuristics alone do the work, and that is written up plainly.
+3. **The model earns its place only if** some threshold with 0 humans flagged catches more honeypot-only bots than the `heuristic label is bot` row. The score blends model and heuristic, and the archive does not store the model score alone, so this measures whether the blend beats the heuristic. If it doesn't, the finding is that the heuristics alone do the work, and that is written up plainly.
 4. **Heuristic rules that never fire on real traffic** (from the report's rules table) are listed as removal candidates in the results. That is how this run also answers whether the codebase is carrying code it doesn't need.
 
 ### What this plan deliberately does not build
@@ -105,11 +105,16 @@ No dashboard panel, no request-ID join between nginx and the check server, no co
 Create `tests/test_provision_collector.py`:
 
 ```python
-"""The collector's nginx config must route what fingerprint.js calls.
+"""The collector's nginx config must route what fingerprint.js calls, and the
+/check oracle must never be reachable through a public prefix location.
 
 scripts/provision-collector.sh shipped routing `location = /fp` while the
 script posts to /microguard/fp, so every fingerprint was lost on the collector
 and no visitor could ever be labeled human. This pins the two together.
+
+Separately, a `location /microguard/ { proxy_pass http://127.0.0.1:8400/; }`
+prefix block maps /microguard/check -> /check, publishing the scoring oracle.
+Only exact-match locations are safe here.
 """
 
 import re
@@ -117,18 +122,24 @@ from pathlib import Path
 
 SCRIPT = Path("scripts/provision-collector.sh").read_text(encoding="utf-8")
 FINGERPRINT_JS = Path("microguard/live/static/fingerprint.js").read_text(encoding="utf-8")
+NGINX_DEPLOY_DOC = Path("docs/howto-deploy-behind-nginx.md").read_text(encoding="utf-8")
+
+
+def _endpoint() -> str:
+    return re.search(r"var ENDPOINT = '([^']+)'", FINGERPRINT_JS).group(1)
+
+
+def _block(text: str, marker: str) -> str:
+    start = text.index(marker)
+    return text[start:text.index("}", start)]
 
 
 def _fingerprint_block() -> str:
-    start = SCRIPT.index("location /microguard/ {")
-    return SCRIPT[start:SCRIPT.index("}", start)]
+    return _block(SCRIPT, f"location = {_endpoint()} {{")
 
 
 def test_the_endpoint_the_script_posts_to_is_routed():
-    endpoint = re.search(r"var ENDPOINT = '([^']+)'", FINGERPRINT_JS).group(1)
-    prefix = endpoint.rsplit("/", 1)[0] + "/"
-
-    assert f"location {prefix} {{" in SCRIPT
+    assert f"location = {_endpoint()} {{" in SCRIPT
 
 
 def test_the_route_binds_the_hash_to_the_visitor_not_to_nginx():
@@ -138,12 +149,26 @@ def test_the_route_binds_the_hash_to_the_visitor_not_to_nginx():
 def test_the_public_route_is_rate_limited_by_a_defined_zone():
     assert "limit_req zone=microguard_fp" in _fingerprint_block()
     assert "zone=microguard_fp:" in SCRIPT
+
+
+def test_the_check_endpoint_is_not_reachable_through_a_public_prefix():
+    assert "location /microguard/ {" not in SCRIPT
+
+    check_block = _block(SCRIPT, "location = /_microguard_check {")
+    assert "internal;" in check_block
+
+    proxy_line = "proxy_pass http://127.0.0.1:8400/check"
+    assert SCRIPT.count(proxy_line) == check_block.count(proxy_line) == 1
+
+
+def test_the_deploy_doc_does_not_use_a_public_prefix_either():
+    assert "location /microguard/ {" not in NGINX_DEPLOY_DOC
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `python -m pytest tests/test_provision_collector.py -v`
-Expected: 3 FAILED, each with `ValueError: substring not found` or `AssertionError`.
+Expected: 5 FAILED, each with `ValueError: substring not found` or `AssertionError`.
 
 - [ ] **Step 3: Fix the nginx config in the script**
 
@@ -170,10 +195,12 @@ with:
     # The fingerprint routes: public by design, answering 200 with identical
     # bytes for every outcome, so they cannot be used as an oracle. Same block
     # as docs/howto-deploy-behind-nginx.md. fingerprint.js posts to
-    # /microguard/fp, so this prefix is the one that has to match, and
+    # /microguard/fp, so these are the routes that have to match, and
     # X-Real-IP binds the hash to the visitor rather than to 127.0.0.1.
-    location /microguard/ {
-        proxy_pass http://127.0.0.1:8400/;
+    # Exact matches, never a prefix: a prefix location with a URI in
+    # proxy_pass would also publish /check as /microguard/check.
+    location = /microguard/fp {
+        proxy_pass http://127.0.0.1:8400/fp;
         client_max_body_size  2k;
         client_body_timeout   5s;
         send_timeout          5s;
@@ -182,9 +209,13 @@ with:
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For "";
     }
+
+    location = /microguard/fingerprint.js {
+        proxy_pass http://127.0.0.1:8400/fingerprint.js;
+    }
 ```
 
-The `\$` escapes are required: the heredoc is unquoted, so an unescaped `$remote_addr` would be expanded by bash to an empty string.
+The `\$` escapes are required: the heredoc is unquoted, so an unescaped `$remote_addr` would be expanded by bash to an empty string. Exact matches only — a prefix `location /microguard/ { proxy_pass http://127.0.0.1:8400/; }` would also map `/microguard/check` to `/check`, publishing the scoring oracle.
 
 In the `DONE` message near the end of the script, change `<script src="/fingerprint.js" defer></script>` to `<script src="/microguard/fingerprint.js" defer></script>`. The exact `/fingerprint.js` location no longer exists, so the old tag would 404.
 
@@ -857,7 +888,9 @@ Fixed before any data exists, so the result cannot be argued with afterwards:
    counts, change nothing.
 2. Blocking can be enabled at threshold T only if **humans flagged at T is 0/N**.
 3. The model earns its place only if some threshold with 0 humans flagged
-   catches more **honeypot-only** bots than the `heuristic label is bot` row.
+   catches more honeypot-only bots than the `heuristic label is bot` row.
+   The score blends model and heuristic, and the archive does not store the
+   model score alone, so this measures whether the blend beats the heuristic.
 4. Heuristic reasons that never appear are listed as removal candidates.
 
 ## 1. Build the page
@@ -924,13 +957,20 @@ sudo systemctl start redis6
 Make a short random token for each place you share, and keep a list:
 
 ```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(4))"
+python3 -c "import secrets; print(secrets.token_hex(3))"
 ```
+
+`token_hex` is used instead of `token_urlsafe` because a `-` is a valid
+character in the latter's alphabet, and a token that happens to start with `-`
+gets parsed as another flag when you later pass it to `--invite-token`.
 
 Share `https://<domain>/?ref=<token>` in private channels only: class group,
 friends, family. A link posted publicly gets followed by crawlers, and a
-crawler that runs JavaScript would be labeled human. Use `?ref=self` for your
-own devices.
+crawler that runs JavaScript would be labeled human. `?ref=self` is for the
+setup check in section 2 only — never pass `self` to `--invite-token`. The
+operator's own IP also sends curl and debugging requests over that same
+connection, and one such request would count as a human flagged at every
+threshold.
 
 ## 4. Run for 72 hours, and check at 24
 
@@ -946,7 +986,7 @@ ssh ec2-user@<ip> 'sudo tar -C / -czf - var/log/nginx var/lib/microguard/collect
   | tar -C eval -xzf -
 microguard evaluate --collected eval/var/lib/microguard/collected.jsonl \
   $(for f in eval/var/log/nginx/access.log*; do printf -- '--access-log %s ' "$f"; done) \
-  --invite-token self --invite-token <token1> --invite-token <token2>
+  --invite-token <token1> --invite-token <token2>
 ```
 
 If `Invited actors that ran the fingerprint script` is near zero, fix the setup

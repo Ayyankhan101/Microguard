@@ -13,7 +13,9 @@ Fixed before any data exists, so the result cannot be argued with afterwards:
    counts, change nothing.
 2. Blocking can be enabled at threshold T only if **humans flagged at T is 0/N**.
 3. The model earns its place only if some threshold with 0 humans flagged
-   catches more **honeypot-only** bots than the `heuristic label is bot` row.
+   catches more honeypot-only bots than the `heuristic label is bot` row.
+   The score blends model and heuristic, and the archive does not store the
+   model score alone, so this measures whether the blend beats the heuristic.
 4. Heuristic reasons that never appear are listed as removal candidates.
 
 ## 1. Build the page
@@ -65,7 +67,9 @@ ab -n 2000 -c 10 -H 'X-Real-IP: 127.0.0.1' -H 'X-Original-URI: /' \
 ```
 
 Write down p50 and p99. The target is p99 under 20 ms on a `t3.micro`; a miss is
-a finding, not a blocker. Loopback traffic is excluded from the evaluation.
+a finding, not a blocker. This `ab` run is tagged `X-Real-IP: 127.0.0.1`, so
+`evaluate`'s loopback filter drops it — but the fingerprint check above and the
+fail-open check below are not tagged that way and arrive as ordinary rows.
 
 **Fail-open.**
 
@@ -75,18 +79,33 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://<domain>/   # must be 200
 sudo systemctl start redis6
 ```
 
+**Reset the archive.** Once all three checks above pass, the instance itself
+has produced fingerprint, latency, and fail-open rows in the archive that are
+not visitors. Start clean before sharing any link:
+
+```bash
+sudo truncate -s 0 /var/lib/microguard/collected.jsonl
+```
+
 ## 3. Share private invite links, one token per channel
 
 Make a short random token for each place you share, and keep a list:
 
 ```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(4))"
+python3 -c "import secrets; print(secrets.token_hex(3))"
 ```
+
+`token_hex` is used instead of `token_urlsafe` because a `-` is a valid
+character in the latter's alphabet, and a token that happens to start with `-`
+gets parsed as another flag when you later pass it to `--invite-token`.
 
 Share `https://<domain>/?ref=<token>` in private channels only: class group,
 friends, family. A link posted publicly gets followed by crawlers, and a
-crawler that runs JavaScript would be labeled human. Use `?ref=self` for your
-own devices.
+crawler that runs JavaScript would be labeled human. `?ref=self` is for the
+setup check in section 2 only — never pass `self` to `--invite-token`. The
+operator's own IP also sends curl and debugging requests over that same
+connection, and one such request would count as a human flagged at every
+threshold.
 
 ## 4. Run for 72 hours, and check at 24
 
@@ -94,15 +113,18 @@ Bot traffic is diurnal, and 72 hours covers three cycles. At 24 hours, pull the
 files and run the evaluation once, only to catch a broken setup:
 
 Both files are root-owned on the instance, so copy them through `sudo tar`
-rather than `scp`:
+rather than `scp`. Start from an empty `eval/` on every pull: logrotate's
+`delaycompress` can leave the same day's traffic in both a plain file and its
+`.gz` neighbor, and a stale `eval/` from a previous pull would then count that
+overlap twice.
 
 ```bash
-mkdir -p eval
+rm -rf eval && mkdir -p eval
 ssh ec2-user@<ip> 'sudo tar -C / -czf - var/log/nginx var/lib/microguard/collected.jsonl' \
   | tar -C eval -xzf -
 microguard evaluate --collected eval/var/lib/microguard/collected.jsonl \
   $(for f in eval/var/log/nginx/access.log*; do printf -- '--access-log %s ' "$f"; done) \
-  --invite-token self --invite-token <token1> --invite-token <token2>
+  --invite-token <token1> --invite-token <token2>
 ```
 
 If `Invited actors that ran the fingerprint script` is near zero, fix the setup
@@ -113,16 +135,34 @@ To watch live, use the dashboard over the tunnel described in
 
 ## 5. Final report
 
-After 72 hours, pull the files again and run the same command, saving the
-output:
+After 72 hours, pull the files again the same way (fresh `eval/`, no `self`
+token), then run `evaluate` twice: once for the full report you read the
+flagged IPs from, and once with `--redact-ips` for the copy that gets
+committed.
 
 ```bash
-microguard evaluate ... > docs/results/<yyyy-mm>-live-evaluation.md
+rm -rf eval && mkdir -p eval
+ssh ec2-user@<ip> 'sudo tar -C / -czf - var/log/nginx var/lib/microguard/collected.jsonl' \
+  | tar -C eval -xzf -
+
+microguard evaluate --collected eval/var/lib/microguard/collected.jsonl \
+  $(for f in eval/var/log/nginx/access.log*; do printf -- '--access-log %s ' "$f"; done) \
+  --invite-token <token1> --invite-token <token2> \
+  > eval/report.md
+
+microguard evaluate --collected eval/var/lib/microguard/collected.jsonl \
+  $(for f in eval/var/log/nginx/access.log*; do printf -- '--access-log %s ' "$f"; done) \
+  --invite-token <token1> --invite-token <token2> --redact-ips \
+  > docs/results/<yyyy-mm>-live-evaluation.md
 ```
+
+`eval/report.md` keeps the raw IPs so you can look them up in the access log
+below; it stays local (`eval/` is gitignored). The `docs/results/` copy is the
+one that gets committed, so it goes through `--redact-ips`.
 
 Below the generated report, write the decision under each rule from "Decide
 before you look", quoting the row it rests on. Then read at least ten of the
-listed unlabeled-but-flagged IPs in the access log
+listed unlabeled-but-flagged IPs from `eval/report.md` in the access log
 (`zgrep -h '^<ip> ' eval/var/log/nginx/access.log*`) and note what each looked like.
 
 ## 6. Clean up
