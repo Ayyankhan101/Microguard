@@ -41,6 +41,7 @@ Task-oriented. You know roughly what you are doing and want it done.
 - [Operate it](howto-operate-microguard.md) — running it by hand: health checks, the three failure modes, restarting, housekeeping
 - [Run the dashboard](howto-run-the-dashboard.md) — the web UI and its API
 - [Collect real sessions on EC2](howto-collect-real-sessions.md) — observe-only collection, the only source of real human training data
+- [Evaluate on live traffic](howto-evaluate-on-live-traffic.md) — honeypot and invite-link ground truth, decision rules fixed in advance
 - [Retrain the model](howto-retrain-the-model.md) — the training pipeline and how to read its numbers
 - [Work on the dashboard UI](howto-work-on-the-gui.md) — the TypeScript side, and the fixture contract
 
