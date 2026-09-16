@@ -55,8 +55,9 @@ redis6-cli --scan --pattern 'mg:v1:fp:*' | head
 ```
 
 Both must show your IP. If the POST is missing, check TLS (`crypto.subtle`
-needs HTTPS) and the `/microguard/` location. Stop here until it works: without
-it nobody can be labeled human.
+needs HTTPS) and the two exact-match locations, `= /microguard/fp` and
+`= /microguard/fingerprint.js`. Stop here until it works: without it nobody can
+be labeled human.
 
 **Latency.** The check runs on every page request:
 
@@ -141,7 +142,7 @@ flagged IPs from, and once with `--redact-ips` for the copy that gets
 committed.
 
 ```bash
-rm -rf eval && mkdir -p eval
+rm -rf eval && mkdir -p eval docs/results
 ssh ec2-user@<ip> 'sudo tar -C / -czf - var/log/nginx var/lib/microguard/collected.jsonl' \
   | tar -C eval -xzf -
 
