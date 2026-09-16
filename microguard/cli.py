@@ -407,6 +407,28 @@ def main():
              'observe-only.'
     )
 
+    # evaluate command — how verdicts held up against constructed ground truth
+    evaluate_parser = subparsers.add_parser(
+        'evaluate',
+        help='Score collected verdicts against honeypot and invite-link ground truth'
+    )
+    evaluate_parser.add_argument(
+        '--access-log', action='append', required=True,
+        help='nginx access log; repeat for rotated files (.gz is fine)'
+    )
+    evaluate_parser.add_argument(
+        '--collected', required=True,
+        help='JSONL archive written by serve --collect-to'
+    )
+    evaluate_parser.add_argument(
+        '--invite-token', action='append', required=True,
+        help='A ?ref= value you shared privately; repeat once per channel'
+    )
+    evaluate_parser.add_argument(
+        '--redact-ips', action='store_true',
+        help='Mask IPs in the unlabeled-flagged table, for a report you commit'
+    )
+
     # dashboard command — API + built SPA on one port
     dashboard_parser = subparsers.add_parser(
         'dashboard',
@@ -778,6 +800,15 @@ def main():
             print(f"❌ Error: cannot reach Redis at {args.redis_url}: {exc}", file=sys.stderr)
             sys.exit(1)
         print(explain_actor(client, args.ip, promoted=promoted))
+
+    elif args.command == 'evaluate':
+        from .evaluate import build_actors, render_report
+        try:
+            actors, skipped = build_actors(args.access_log, args.collected, args.invite_token)
+        except OSError as e:
+            print(f"❌ Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(render_report(actors, skipped_rows=skipped, redact_ips=args.redact_ips))
 
     elif args.command == 'dashboard':
         from .dashboard.server import run_dashboard

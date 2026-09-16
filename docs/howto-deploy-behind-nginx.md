@@ -70,8 +70,12 @@ location / {
 # own docs say must not face the internet directly. nginx buffers the body and
 # enforces these limits, so the Python process only ever sees a small, complete
 # request.
-location /microguard/ {
-    proxy_pass http://127.0.0.1:8400/;
+#
+# Exact matches, never a prefix: a prefix location for /microguard/ with a
+# URI in its proxy_pass target would also publish /check as
+# /microguard/check.
+location = /microguard/fp {
+    proxy_pass http://127.0.0.1:8400/fp;
 
     # A SHA-256 hex digest in a JSON envelope is about 100 bytes. microguard
     # caps it again server-side; this stops the body reaching Python at all.
@@ -88,6 +92,10 @@ location /microguard/ {
     # Same reasoning as the check endpoint: the hash is bound to this IP, and a
     # spoofable value would let an attacker bind a hash to someone else.
     proxy_set_header X-Forwarded-For "";
+}
+
+location = /microguard/fingerprint.js {
+    proxy_pass http://127.0.0.1:8400/fingerprint.js;
 }
 
 # Goes in the http {} block, alongside your other zones.

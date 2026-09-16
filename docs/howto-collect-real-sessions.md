@@ -73,7 +73,7 @@ the `fingerprint` signal until TLS is live.
 Then add the script to your page, inside `<body>`:
 
 ```html
-<script src="/fingerprint.js" defer></script>
+<script src="/microguard/fingerprint.js" defer></script>
 ```
 
 ## 4. Verify before sharing the link

@@ -95,6 +95,9 @@ UNIT
 
 echo "==> nginx site"
 cat >/etc/nginx/conf.d/microguard.conf <<NGINX
+# One page load submits one fingerprint; this is generous for a visitor.
+limit_req_zone \$binary_remote_addr zone=microguard_fp:10m rate=30r/m;
+
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -116,10 +119,27 @@ server {
         proxy_set_header Referer \$http_referer;
     }
 
-    # The fingerprint endpoints are public by design and answer 200 with
-    # identical bytes for every outcome, so they cannot be used as an oracle.
-    location = /fp              { proxy_pass http://127.0.0.1:8400/fp; }
-    location = /fingerprint.js  { proxy_pass http://127.0.0.1:8400/fingerprint.js; }
+    # The fingerprint routes: public by design, answering 200 with identical
+    # bytes for every outcome, so they cannot be used as an oracle. Same block
+    # as docs/howto-deploy-behind-nginx.md. fingerprint.js posts to
+    # /microguard/fp, so these are the routes that have to match, and
+    # X-Real-IP binds the hash to the visitor rather than to 127.0.0.1.
+    # Exact matches, never a prefix: a prefix location with a URI in
+    # proxy_pass would also publish /check as /microguard/check.
+    location = /microguard/fp {
+        proxy_pass http://127.0.0.1:8400/fp;
+        client_max_body_size  2k;
+        client_body_timeout   5s;
+        send_timeout          5s;
+        proxy_read_timeout    5s;
+        limit_req zone=microguard_fp burst=5 nodelay;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For "";
+    }
+
+    location = /microguard/fingerprint.js {
+        proxy_pass http://127.0.0.1:8400/fingerprint.js;
+    }
 
     location / {
         auth_request /_microguard_check;
@@ -142,7 +162,7 @@ cat <<DONE
        certbot --nginx -d ${DOMAIN}
 
   2. Put the fingerprint script on your page, inside <body>:
-       <script src="/fingerprint.js" defer></script>
+       <script src="/microguard/fingerprint.js" defer></script>
 
 Archive:   ${COLLECT_TO}
 Dashboard: ssh -L 8500:127.0.0.1:8500 <host>, then microguard dashboard
