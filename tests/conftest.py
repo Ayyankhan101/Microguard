@@ -1,11 +1,37 @@
 """Shared test fixtures: LogEntry/Session builders and a real-file helper."""
 
+import os
 from datetime import datetime, timezone
 
 import pytest
 
 from microguard.features import Session
 from microguard.parser import LogEntry
+
+# Env vars that point MLflow or the Databricks SDK at a real workspace.
+_TRACKING_ENV_VARS = ("MLFLOW_TRACKING_URI", "MLFLOW_REGISTRY_URI")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_tracking_backend(monkeypatch, tmp_path_factory):
+    """Keep every test away from a real Databricks workspace.
+
+    `train.main()` defaults to `mlflow_enabled=True`. On a machine with
+    Databricks credentials, a test calling it started a real MLflow run in
+    the developer's workspace, logged a model to it, and then failed at
+    `register_model` with PERMISSION_DENIED. CI has no credentials, so the
+    same tests passed there -- the leak only showed on a dev machine.
+
+    Removing the env vars is not enough: with none set, the Databricks SDK
+    still reads the [DEFAULT] profile from ~/.databrickscfg, so the config
+    file is pointed at a path that does not exist. Tests that need a
+    tracking URI set one explicitly with monkeypatch, which still works.
+    """
+    for name in list(os.environ):
+        if name.startswith("DATABRICKS_") or name in _TRACKING_ENV_VARS:
+            monkeypatch.delenv(name)
+    missing = tmp_path_factory.getbasetemp() / "no-databrickscfg"
+    monkeypatch.setenv("DATABRICKS_CONFIG_FILE", str(missing))
 
 
 @pytest.fixture
