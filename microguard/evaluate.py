@@ -57,6 +57,7 @@ class Actor:
     invited: bool = False
     ran_fingerprint: bool = False
     max_score: float | None = None
+    max_model_score: float | None = None
     heuristic_bot: bool = False
     reasons: set[str] = field(default_factory=set)
 
@@ -120,6 +121,12 @@ def build_actors(
             continue
         actor = actors.setdefault(ip, Actor())
         actor.max_score = score if actor.max_score is None else max(actor.max_score, score)
+        model = row.get("model_score")
+        if isinstance(model, (int, float)):
+            actor.max_model_score = (
+                model if actor.max_model_score is None
+                else max(actor.max_model_score, model)
+            )
         if row.get("heuristic_label") == "bot":
             actor.heuristic_bot = True
         reason = row.get("heuristic_reason")
@@ -132,6 +139,13 @@ def build_actors(
 def _above(threshold: float) -> Callable[[Actor], bool]:
     """Flag rule matching the scorer, which blocks on score > threshold."""
     return lambda actor: actor.max_score is not None and actor.max_score > threshold
+
+
+def _model_above(threshold: float) -> Callable[[Actor], bool]:
+    """The model's own verdict, before the heuristic is blended in."""
+    return lambda actor: (
+        actor.max_model_score is not None and actor.max_model_score > threshold
+    )
 
 
 def _ratio(actors: Iterable[Actor], truth: str, flagged: Callable[[Actor], bool]) -> str:
@@ -198,6 +212,9 @@ def render_report(
     for t in THRESHOLDS:
         default = " (default)" if t == BLOCK_THRESHOLD_DEFAULT else ""
         rules.append((f"score > {t:.2f}{default}", _above(t)))
+    has_model = any(a.max_model_score is not None for a in scored.values())
+    if has_model:
+        rules += [(f"model score > {t:.2f}", _model_above(t)) for t in THRESHOLDS]
 
     lines += [
         "## Verdicts on labeled actors",
@@ -218,6 +235,14 @@ def render_report(
             f"| {_ratio(honeypot_only, BOT, flagged)} "
             f"| {_ratio(scored.values(), HUMAN, flagged)} |"
         )
+    if not has_model:
+        lines += [
+            "",
+            (
+                "Model-only rows omitted: this archive predates model_score, so the "
+                "model cannot be separated from the blend."
+            ),
+        ]
 
     fired: dict[str, Counter[str]] = {}
     for actor in scored.values():

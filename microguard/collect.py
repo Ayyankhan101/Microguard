@@ -99,6 +99,9 @@ class DecisionCollector:
             "decision_id": decision.get("id"),
             "features": [float(f) for f in features],
             "score": decision.get("score"),
+            # The model alone, beside the blend: without it no evaluation can
+            # say whether the model adds anything to the heuristic.
+            "model_score": decision.get("model_score"),
             "heuristic_label": decision.get("heuristic_label"),
             "heuristic_reason": decision.get("heuristic_reason"),
             "ip": decision.get("ip"),

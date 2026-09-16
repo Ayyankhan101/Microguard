@@ -262,6 +262,15 @@ class TestLoadingBackWhatWasCollected:
 
         assert load_collected(tmp_path / "nothing.jsonl") == []
 
+    def test_the_model_score_is_archived_beside_the_blend(self, tmp_path):
+        """The blended score alone cannot say whether the model helps."""
+        from microguard.collect import load_collected
+
+        path = tmp_path / "decisions.jsonl"
+        DecisionCollector(path).record(_decision(model_score=0.73))
+
+        assert load_collected(path)[0]["model_score"] == 0.73
+
     def test_collected_rows_carry_no_confirmed_label(self, tmp_path):
         """The honest part, pinned as a test.
 
