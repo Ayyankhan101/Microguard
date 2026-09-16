@@ -15,6 +15,7 @@ import pytest
 
 import microguard.cli as cli_module
 from microguard.cli import DEFAULT_MODEL_PATH, scan_logfile
+from microguard.collect import NUM_FEATURES, DecisionCollector
 
 
 def _nginx_line(ip, ts, method, url, status, ua, referer="-"):
@@ -1004,3 +1005,43 @@ class TestScanModelSourceRegistry:
         self._run(monkeypatch, ['scan', path])
 
         assert 'MLflow logging failed' not in capsys.readouterr().err
+
+
+class TestEvaluateCommand:
+    """`microguard evaluate` end to end via main()."""
+
+    def test_prints_the_report(self, monkeypatch, capsys, tmp_path, nginx_log_file):
+        log = nginx_log_file([
+            (
+                '198.51.100.1 - - [16/Sep/2026:10:00:00 +0000] '
+                '"GET /_hp/a HTTP/1.1" 404 0 "-" "curl/8.0"'
+            ),
+        ])
+        collected = tmp_path / "collected.jsonl"
+        DecisionCollector(collected).record({
+            "id": "d1", "features": [0.0] * NUM_FEATURES, "score": 0.9,
+            "heuristic_label": "bot", "heuristic_reason": "attack tool UA: curl/8.0",
+            "ip": "198.51.100.1", "blocked": False,
+        })
+        monkeypatch.setattr(sys, "argv", [
+            "microguard", "evaluate", "--access-log", log,
+            "--collected", str(collected), "--invite-token", "k7q2",
+        ])
+
+        cli_module.main()
+
+        out = capsys.readouterr().out
+        assert "| bot | 1 |" in out
+        assert "| score > 0.85 (default) | 1/1 | 1/1 | 0/0 |" in out
+        assert "| attack tool UA | 1 | 0 | 0 |" in out
+
+    def test_an_access_log_is_required(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(sys, "argv", [
+            "microguard", "evaluate", "--collected", str(tmp_path / "c.jsonl"),
+            "--invite-token", "k7q2",
+        ])
+
+        with pytest.raises(SystemExit) as exc:
+            cli_module.main()
+
+        assert exc.value.code == 2

@@ -407,6 +407,24 @@ def main():
              'observe-only.'
     )
 
+    # evaluate command — how verdicts held up against constructed ground truth
+    evaluate_parser = subparsers.add_parser(
+        'evaluate',
+        help='Score collected verdicts against honeypot and invite-link ground truth'
+    )
+    evaluate_parser.add_argument(
+        '--access-log', action='append', required=True,
+        help='nginx access log; repeat for rotated files (.gz is fine)'
+    )
+    evaluate_parser.add_argument(
+        '--collected', required=True,
+        help='JSONL archive written by serve --collect-to'
+    )
+    evaluate_parser.add_argument(
+        '--invite-token', action='append', required=True,
+        help='A ?ref= value you shared privately; repeat once per channel'
+    )
+
     # dashboard command — API + built SPA on one port
     dashboard_parser = subparsers.add_parser(
         'dashboard',
@@ -778,6 +796,11 @@ def main():
             print(f"❌ Error: cannot reach Redis at {args.redis_url}: {exc}", file=sys.stderr)
             sys.exit(1)
         print(explain_actor(client, args.ip, promoted=promoted))
+
+    elif args.command == 'evaluate':
+        from .evaluate import build_actors, render_report
+        actors, skipped = build_actors(args.access_log, args.collected, args.invite_token)
+        print(render_report(actors, skipped_rows=skipped))
 
     elif args.command == 'dashboard':
         from .dashboard.server import run_dashboard
