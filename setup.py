@@ -28,7 +28,10 @@ setup(
         "micrograd",
     ],
     extras_require={
-        "live": ["redis>=5.0,<6"],
+        # 5.0.1 annotates Redis.from_url as returning None, so every client
+        # built from a URL types as None and mypy fails across microguard/live.
+        # 5.0.2 fixed the annotation.
+        "live": ["redis>=5.0.2,<6"],
         "fastapi": ["fastapi>=0.110", "uvicorn>=0.29"],
         "dashboard": [
             "fastapi>=0.110",
