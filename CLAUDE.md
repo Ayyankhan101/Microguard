@@ -40,7 +40,8 @@ python gui/scripts/capture_fixtures.py   # Recapture API fixtures after a shape 
 
 ## Health Stack
 
-- typecheck: mypy microguard
+- typecheck: mypy microguard (CI gates it in the `typecheck (mypy)` job, on
+  Python 3.10 without the mlflow extra)
 - lint: ruff check .
 - test: pytest
 - coverage: pytest --cov=microguard --cov-report=term-missing (99.31%; CI
