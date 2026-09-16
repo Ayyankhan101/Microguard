@@ -23,15 +23,15 @@ def _line(ip, method, url, second=0, status=200):
     )
 
 
-def _collect(tmp_path, *decisions):
+def _collect(tmp_path, *decisions, model_score=None):
     """Write decisions with the real collector, so the rows match production."""
     path = tmp_path / "collected.jsonl"
     sink = DecisionCollector(path)
     for i, (ip, score, label, reason) in enumerate(decisions):
         assert sink.record({
             "id": f"d{i}", "features": [0.0] * NUM_FEATURES, "score": score,
-            "heuristic_label": label, "heuristic_reason": reason,
-            "ip": ip, "blocked": False,
+            "model_score": model_score, "heuristic_label": label,
+            "heuristic_reason": reason, "ip": ip, "blocked": False,
         })
     return str(path)
 
@@ -219,3 +219,45 @@ class TestReport:
         )
 
         assert "| 198.51.100.7 | 0.97 | 4 |" in report
+
+    def test_the_model_alone_has_its_own_rows(self):
+        report = render_report({
+            "h": Actor(invited=True, ran_fingerprint=True, max_score=0.9, max_model_score=0.2),
+            "b": Actor(hit_honeypot=True, max_score=0.3, max_model_score=0.95),
+        })
+
+        assert "| model score > 0.85 | 1/1 | 1/1 | 0/1 |" in report
+        assert "| score > 0.85 (default) | 0/1 | 0/1 | 1/1 |" in report
+
+    def test_model_rows_are_omitted_for_an_archive_without_model_scores(self):
+        report = render_report({"b": Actor(hit_honeypot=True, max_score=0.9)})
+
+        assert "model score >" not in report
+        assert "predates model_score" in report
+
+
+class TestModelScore:
+    def test_the_highest_model_score_is_kept(self, nginx_log_file, tmp_path):
+        log = nginx_log_file([_line("198.51.100.9", "GET", "/")])
+        collected = tmp_path / "collected.jsonl"
+        sink = DecisionCollector(collected)
+        for i, model in enumerate((0.4, 0.8, 0.6)):
+            sink.record({
+                "id": f"d{i}", "features": [0.0] * NUM_FEATURES, "score": 0.5,
+                "model_score": model, "heuristic_label": "human",
+                "heuristic_reason": "normal browsing", "ip": "198.51.100.9",
+                "blocked": False,
+            })
+
+        actors, _ = build_actors([log], str(collected), [])
+
+        assert actors["198.51.100.9"].max_model_score == 0.8
+
+    def test_a_row_without_a_model_score_leaves_it_unset(self, nginx_log_file, tmp_path):
+        log = nginx_log_file([_line("198.51.100.9", "GET", "/")])
+
+        actors, _ = build_actors(
+            [log], _collect(tmp_path, ("198.51.100.9", 0.5, "human", "normal browsing")), [],
+        )
+
+        assert actors["198.51.100.9"].max_model_score is None
