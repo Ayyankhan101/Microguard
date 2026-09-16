@@ -408,6 +408,7 @@ both at once:
 | `mg:v1:fp:{ip}` | STRING | `{hash, shared_ips}` for one actor. Its own key rather than a field on `mg:v1:signals:{ip}`, because the refresher `SET`s that key wholesale and would clobber it |
 | `mg:v1:fp_ips:{hash}` | SET | IPs seen with this fingerprint inside the window (600s TTL) |
 | `mg:v2:actor:{hash}` | HASH | `first_seen`, `last_seen`, `sightings`, `distinct_ips`. 30-day sliding TTL — the only structure here that outlives a session. A HASH so sightings use `HINCRBY`; the prefix is v2 because `HINCRBY` against a v1 JSON string is `WRONGTYPE` |
+| `mg:v2:actor_index` | ZSET | Hash → last-seen epoch for every actor record, capped at 10,000. When over the cap, the least recently seen actors are evicted along with their `mg:v2:actor:{hash}` records. Evicted by recency, not sightings, because the busiest actor is usually the farm |
 
 One decision is one pipeline: `LPUSH` + `LTRIM`, `HINCRBY` on the counters and
 the histogram, and `ZINCRBY` on the blocked IPs for a block. Reads are one

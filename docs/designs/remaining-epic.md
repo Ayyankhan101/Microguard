@@ -1,7 +1,19 @@
 <!-- Promoted from a /plan-ceo-review session on 2026-09-12. -->
-<!-- Status: ACTIVE. Supersedes specs/0002, 0003 and 0004 where they conflict. -->
+<!-- Status: SHIPPED in v3.0.0 (29aaf79). Supersedes specs/0002, 0003 and 0004 where they conflict. -->
 
 # Close the remaining epic: signal seam, fingerprinting, adaptive learning
+
+> **Shipped.** Every task below landed in v3.0.0 (`29aaf79`) and its follow-up
+> fixes; the checkboxes were ticked on 2026-09-16, after the fact. The body is
+> kept as written at review time. Where the shipped system differs:
+>
+> - **Actor records live under `mg:v2:actor:{hash}`, not `mg:v1:actor:{hash}`.**
+>   They became a Redis HASH so sightings use `HINCRBY`; the version changed
+>   because `HINCRBY` against a v1 JSON string is `WRONGTYPE` (`da6812d`).
+> - **The count cap this plan deferred is done** (#10): `mg:v2:actor_index`
+>   holds at most 10,000 actors, evicting the least recently seen.
+>
+> `docs/reference-live-api.md` is the current key schema; trust it over this file.
 
 ## Context
 
@@ -262,97 +274,97 @@ above. JSONL artifact:
 
 **M1 — the seam**
 
-- [ ] **T1 (P1, human: ~1d / CC: ~20min)** — signals — Add the seam: `EMPTY_SIGNALS` + `signals` param on `label_session`
+- [x] **T1 (P1, human: ~1d / CC: ~20min)** — signals — Add the seam: `EMPTY_SIGNALS` + `signals` param on `label_session`
   - Surfaced by: Section 1, decision 1A — `labeler.py` must stay pure so `scan`/`probe`/`watch` cannot make a network call
   - Files: `microguard/signals/__init__.py`, `microguard/labeler.py`
   - Verify: `microguard scan data/sample_access.log` byte-identical before/after
-- [ ] **T2 (P1, human: ~1d / CC: ~20min)** — signals — `microguard signals` process + heartbeat key
+- [x] **T2 (P1, human: ~1d / CC: ~20min)** — signals — `microguard signals` process + heartbeat key
   - Surfaced by: Section 1, decision 2A — the slow tier must not live in the process whose death is a 500
   - Files: `microguard/signals/refresher.py`, `microguard/cli.py`
   - Verify: `redis-cli GET mg:v1:signals:heartbeat` moves; kill it, `/check` still answers
-- [ ] **T3 (P1, human: ~0.5d / CC: ~15min)** — scorer — Fold the signals read into the existing `record_request` pipeline
+- [x] **T3 (P1, human: ~0.5d / CC: ~15min)** — scorer — Fold the signals read into the existing `record_request` pipeline
   - Surfaced by: Section 7 — a separate GET doubles hot-path round trips on a remote Redis
   - Files: `microguard/live/scorer.py`, `microguard/live/redis_store.py`
   - Verify: assert one round trip per `/check` against a counting fake
-- [ ] **T4 (P1, human: ~0.5d / CC: ~15min)** — labeler — `_check_threat_intel_signals`, observe-only by default
+- [x] **T4 (P1, human: ~0.5d / CC: ~15min)** — labeler — `_check_threat_intel_signals`, observe-only by default
   - Surfaced by: Section 9, decision 10A — a new signal must not change blocking before it is measured
   - Files: `microguard/labeler.py`
   - Verify: signal fires in the recorded decision but cannot solely produce a block
-- [ ] **T5 (P2, human: ~1d / CC: ~20min)** — dashboard — Sidebar signal health: source age, quota, heartbeat
+- [x] **T5 (P2, human: ~1d / CC: ~20min)** — dashboard — Sidebar signal health: source age, quota, heartbeat
   - Surfaced by: D4.3 + decision 11A — every signal here fails silently by design
   - Files: `gui/src/`, `microguard/dashboard/api_health.py`
   - Verify: stop the refresher; panel says "not running", not "healthy"
-- [ ] **T6 (P2, human: ~0.5d / CC: ~15min)** — cli — `microguard explain <ip>`
+- [x] **T6 (P2, human: ~0.5d / CC: ~15min)** — cli — `microguard explain <ip>`
   - Surfaced by: D4.5 — "why was this blocked" stops being answerable from the decision payload once signals exist
   - Files: `microguard/cli.py`
   - Verify: prints session, resolved signals, and the deciding rule for a known IP
 
 **M2 — fingerprint + actor identity**
 
-- [ ] **T7 (P1, human: ~0.5d / CC: ~15min)** — server — `do_POST /fp`, `GET /fingerprint.js`, public nginx location
+- [x] **T7 (P1, human: ~0.5d / CC: ~15min)** — server — `do_POST /fp`, `GET /fingerprint.js`, public nginx location
   - Surfaced by: Section 1, decision 3A — 0003 told the browser to fetch from an nginx `internal` location
   - Files: `microguard/live/server.py`, `docs/howto-deploy-behind-nginx.md`
   - Verify: `curl` the script publicly; `/check` still unreachable from outside
-- [ ] **T8 (P1, human: ~0.5d / CC: ~15min)** — server — Validate `/fp` before parse; 200 not 500 on Redis failure
+- [x] **T8 (P1, human: ~0.5d / CC: ~15min)** — server — Validate `/fp` before parse; 200 not 500 on Redis failure
   - Surfaced by: Section 4 — a public non-critical route must not surface errors to a visitor
   - Files: `microguard/live/server.py`
   - Verify: oversized body, non-hex hash, and a downed Redis each return a non-5xx
-- [ ] **T9 (P1, human: ~0.5d / CC: ~15min)** — live — Bind the hash to an IP with existing session history; first hash wins
+- [x] **T9 (P1, human: ~0.5d / CC: ~15min)** — live — Bind the hash to an IP with existing session history; first hash wins
   - Surfaced by: Section 3, decision 7A — unauthenticated `/fp` otherwise lets an attacker get real users blocked
   - Files: `microguard/live/server.py`, `microguard/live/redis_store.py`
   - Verify: POST a hash from an IP with no `live:v2:` history; assert it is not recorded
-- [ ] **T10 (P2, human: ~0.5d / CC: ~10min)** — live — `mg:v1:actor:{hash}`, 30-day sliding TTL
+- [x] **T10 (P2, human: ~0.5d / CC: ~10min)** — live — `mg:v1:actor:{hash}`, 30-day sliding TTL
   - Surfaced by: D4.1 + decision 5A — the hash is an identity key that survives IP rotation
   - Files: `microguard/live/redis_store.py`
   - Verify: same hash from a second IP links to one actor record; TTL refreshes on sighting
-- [ ] **T11 (P1, human: ~1d / CC: ~20min)** — labeler — `_check_fingerprint_signals`, page-route exemption, bound-pair counting
+- [x] **T11 (P1, human: ~1d / CC: ~20min)** — labeler — `_check_fingerprint_signals`, page-route exemption, bound-pair counting
   - Surfaced by: spec 0003 rules 1 and 2, re-based onto decision 7A
   - Files: `microguard/labeler.py`
   - Verify: rule 1 does not fire for an API-only session; rule 2 counts bound pairs only
-- [ ] **T12 (P1, human: ~1d / CC: ~25min)** — ci — One non-matrixed Playwright job
+- [x] **T12 (P1, human: ~1d / CC: ~25min)** — ci — One non-matrixed Playwright job
   - Surfaced by: Section 6, decision 9A — the fingerprint claim is unfalsifiable without a real browser
   - Files: `.github/workflows/test.yml`, `tests/live/test_fingerprint.py`
   - Verify: stable hash across runs; different hash under changed timezone/viewport; payload carries only the hash
 
 **M3 — adaptive learning**
 
-- [ ] **T13 (P1, human: ~0.5d / CC: ~15min)** — events — Decision `id` + `features` array on every recorded decision
+- [x] **T13 (P1, human: ~0.5d / CC: ~15min)** — events — Decision `id` + `features` array on every recorded decision
   - Surfaced by: Section 4, decision 4A — events have no identifier and no features, so feedback can neither reference nor train on them
   - Files: `microguard/live/redis_events.py`, `microguard/events.py`
   - Verify: a decision read back from `mg:v1:events` carries 19 floats and a stable id
-- [ ] **T14 (P1, human: ~15min / CC: ~5min)** — scorer — Run `extract_features` unconditionally
+- [x] **T14 (P1, human: ~15min / CC: ~5min)** — scorer — Run `extract_features` unconditionally
   - Surfaced by: decision 4A — features are currently computed only when a model is loaded
   - Files: `microguard/live/scorer.py`
   - Verify: with no model present, the event still carries features
-- [ ] **T15 (P1, human: ~1.5d / CC: ~30min)** — training — `record_correction` + `retrain_deployment_model` with rails and atomic `os.replace`
+- [x] **T15 (P1, human: ~1.5d / CC: ~30min)** — training — `record_correction` + `retrain_deployment_model` with rails and atomic `os.replace`
   - Surfaced by: Section 2, decision 6A — a crash mid-write leaves a partial file the mtime watcher will load
   - Files: `microguard/training/online_update.py`
   - Verify: `data/model.json` byte-identical after a retrain; bad JSONL lines skipped and counted
-- [ ] **T16 (P1, human: ~1d / CC: ~20min)** — scorer — Deployment-model selection; refuse a bad swap and keep the previous model; mtime cached 5s
+- [x] **T16 (P1, human: ~1d / CC: ~20min)** — scorer — Deployment-model selection; refuse a bad swap and keep the previous model; mtime cached 5s
   - Surfaced by: Section 2 CRITICAL GAP + Section 7 — corrupt model currently degrades to heuristics silently
   - Files: `microguard/live/scorer.py`
   - Verify: corrupt the deployment model; the previous model stays live and health shows the refusal
-- [ ] **T17 (P2, human: ~1d / CC: ~20min)** — dashboard — Feedback control on rows + `POST /api/live/feedback` open by default
+- [x] **T17 (P2, human: ~1d / CC: ~20min)** — dashboard — Feedback control on rows + `POST /api/live/feedback` open by default
   - Surfaced by: D4.2 + decision 8A — corrections happen where the verdict is seen
   - Files: `gui/src/`, `microguard/dashboard/api_live.py`
   - Verify: double-click writes one row, not two
-- [ ] **T18 (P2, human: ~0.5d / CC: ~15min)** — dashboard — Shadow would-block counter beside the threshold slider
+- [x] **T18 (P2, human: ~0.5d / CC: ~15min)** — dashboard — Shadow would-block counter beside the threshold slider
   - Surfaced by: D4.4 — the required readout for decision 10A's observe-only posture
   - Files: `gui/src/`
   - Verify: at threshold 1.00 the counter is non-zero while blocked stays 0
 
 **Cross-cutting**
 
-- [ ] **T19 (P2, human: ~0.5d / CC: ~15min)** — docs — Fourth process + two new failure modes in the runbook
+- [x] **T19 (P2, human: ~0.5d / CC: ~15min)** — docs — Fourth process + two new failure modes in the runbook
   - Surfaced by: Section 8 — the runbook documents three failure modes; this plan adds two
   - Files: `docs/howto-operate-microguard.md`
-- [ ] **T20 (P2, human: ~0.5d / CC: ~15min)** — docs — `/fp`, `/fingerprint.js`, `/api/live/feedback`, `mg:v1:signals:*`, `mg:v1:actor:*`
+- [x] **T20 (P2, human: ~0.5d / CC: ~15min)** — docs — `/fp`, `/fingerprint.js`, `/api/live/feedback`, `mg:v1:signals:*`, `mg:v1:actor:*`
   - Surfaced by: Required outputs — new endpoints and key families
   - Files: `docs/reference-live-api.md`
-- [ ] **T21 (P3, human: ~15min / CC: ~5min)** — repo — Create `TODOS.md` with the three accepted items
+- [x] **T21 (P3, human: ~15min / CC: ~5min)** — repo — Create `TODOS.md` with the three accepted items
   - Surfaced by: Question 12 — all three accepted, and this repo has no `TODOS.md`
   - Files: `TODOS.md`
-- [ ] **T22 (P2, human: ~15min / CC: ~5min)** — repo — Promote this plan to `docs/designs/remaining-epic.md`
+- [x] **T22 (P2, human: ~15min / CC: ~5min)** — repo — Promote this plan to `docs/designs/remaining-epic.md`
   - Surfaced by: Question 14 — `specs/` is untracked, so the epic exists only on one machine
   - Files: `docs/designs/remaining-epic.md`
 
@@ -437,17 +449,17 @@ plus 58 in the test suite.
 
 ### Additional tasks
 
-- [ ] **E1 (P1, human: ~15min / CC: ~5min)** — signals — Split `EMPTY_SIGNALS` into a stdlib-only module
-- [ ] **E2 (P1, human: ~0.5d / CC: ~20min)** — live — `record_request` returns a `SessionSnapshot`
-- [ ] **E3 (P1, human: ~15min / CC: ~5min)** — live — **CRITICAL REGRESSION TEST**: real store and in-memory double return one shape
-- [ ] **E4 (P1, human: ~0.5d / CC: ~15min)** — labeler — Rule 1 treats empty signals as not-evaluated
-- [ ] **E5 (P1, human: ~1d / CC: ~25min)** — middleware — Host `/fp` and `/fingerprint.js` in ASGI and WSGI
-- [ ] **E6 (P1, human: ~0.5d / CC: ~15min)** — live — Denormalize the cross-IP count at `/fp` write time
-- [ ] **E7 (P2, human: ~20min / CC: ~5min)** — live — Merge the duplicated fail-open payload
-- [ ] **E8 (P2, human: ~20min / CC: ~5min)** — scorer — Lock the model reload; refusal in the reload path
-- [ ] **E9 (P2, human: ~0.5d / CC: ~15min)** — ci — Contract test across all three `/fp` hosts
-- [ ] **E10 (P2, human: ~15min / CC: ~5min)** — scorer — `extract_features` when model OR recorder present
-- [ ] **E11 (P3, human: ~20min / CC: ~5min)** — docs — Bound the public nginx location
+- [x] **E1 (P1, human: ~15min / CC: ~5min)** — signals — Split `EMPTY_SIGNALS` into a stdlib-only module
+- [x] **E2 (P1, human: ~0.5d / CC: ~20min)** — live — `record_request` returns a `SessionSnapshot`
+- [x] **E3 (P1, human: ~15min / CC: ~5min)** — live — **CRITICAL REGRESSION TEST**: real store and in-memory double return one shape
+- [x] **E4 (P1, human: ~0.5d / CC: ~15min)** — labeler — Rule 1 treats empty signals as not-evaluated
+- [x] **E5 (P1, human: ~1d / CC: ~25min)** — middleware — Host `/fp` and `/fingerprint.js` in ASGI and WSGI
+- [x] **E6 (P1, human: ~0.5d / CC: ~15min)** — live — Denormalize the cross-IP count at `/fp` write time
+- [x] **E7 (P2, human: ~20min / CC: ~5min)** — live — Merge the duplicated fail-open payload
+- [x] **E8 (P2, human: ~20min / CC: ~5min)** — scorer — Lock the model reload; refusal in the reload path
+- [x] **E9 (P2, human: ~0.5d / CC: ~15min)** — ci — Contract test across all three `/fp` hosts
+- [x] **E10 (P2, human: ~15min / CC: ~5min)** — scorer — `extract_features` when model OR recorder present
+- [x] **E11 (P3, human: ~20min / CC: ~5min)** — docs — Bound the public nginx location
 
 Test coverage for the assembled plan: 58 code paths and user flows identified, 1 currently
 covered (the existing rule chain with `signals` absent, which is what the empty default
