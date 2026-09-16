@@ -22,7 +22,7 @@ redis-cli -u "$REDIS_URL" flushdb >/dev/null
 ARCHIVE="$PFX/collected.jsonl"
 
 echo "==> start check server (observe-only, real scorer) on :8400"
-python -m microguard.cli serve --host 127.0.0.1 --port 8400 \
+microguard serve --host 127.0.0.1 --port 8400 \
   --redis-url "$REDIS_URL" --block-threshold 1.0 \
   --collect-to "$ARCHIVE" --deployment-id lab >"$PFX/serve.log" 2>&1 &
 SERVE_PID=$!
@@ -41,7 +41,7 @@ python "$LAB/generate_traffic.py" "$HUMANS" "$SCRAPERS" "$CRED" "$PFX/ground_tru
 sleep 2  # let the last decisions flush to the archive
 
 echo; echo "==================== microguard evaluate (field view) ===================="
-python -m microguard.cli evaluate --collected "$ARCHIVE" \
+microguard evaluate --collected "$ARCHIVE" \
   --access-log "$PFX/access.log" --invite-token cohort1 | tee "$PFX/evaluate-report.md"
 
 echo; echo "==================== scorecard (exact ground truth) ===================="

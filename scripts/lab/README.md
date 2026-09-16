@@ -35,8 +35,9 @@ It prints, and saves under `scripts/lab/.run/`:
 
 ## Honesty about the humans
 
-The human sessions are scripted, not real people, so the human false-positive
-rate is a property of what a plausible human request sequence looks like, not of
-real visitors. For real humans you need the live EC2 run in
+The human sessions are scripted, not real people. Timing is realistic (a
+browser-shaped load burst, then seconds-to-tens-of-seconds of dwell per page),
+so the human false-positive rate reflects what a plausible human request
+sequence looks like -- but it is still a simulation, not real visitors. For real humans you need the live EC2 run in
 [../../docs/howto-evaluate-on-live-traffic.md](../../docs/howto-evaluate-on-live-traffic.md).
 The bot traffic, by contrast, is genuine tool output.
