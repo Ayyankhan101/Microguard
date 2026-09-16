@@ -52,9 +52,15 @@ def browser():
         chromium.close()
 
 
-def _capture(browser, **context_kwargs) -> str | None:
-    """Load a page embedding the real script; return the body it POSTs."""
+def _capture(browser, init_script: str | None = None, **context_kwargs) -> str | None:
+    """Load a page embedding the real script; return the body it POSTs.
+
+    `init_script` runs before any page script, which is how a blocked API is
+    simulated: it replaces the API before fingerprint.js can reach it.
+    """
     context = browser.new_context(**context_kwargs)
+    if init_script is not None:
+        context.add_init_script(init_script)
     page = context.new_page()
     captured: dict[str, str] = {}
 
@@ -105,6 +111,40 @@ class TestTheScriptRunsInARealBrowser:
         ))["fingerprint_hash"]
 
         assert baseline != altered
+
+
+# Canvas blocked two ways. Browsers with canvas disabled return null from
+# getContext; privacy extensions commonly throw instead. WebGL goes through the
+# same call, so both are blocked at once.
+CANVAS_RETURNS_NULL = "HTMLCanvasElement.prototype.getContext = function () { return null; };"
+CANVAS_THROWS = (
+    "HTMLCanvasElement.prototype.getContext = function () {"
+    " throw new Error('blocked by extension'); };"
+)
+
+
+class TestBlockedApis:
+    """The absence rule reads a missing fingerprint as evidence of a bot, so a
+    human with canvas or WebGL blocked must still produce a hash and still
+    reach the endpoint. Each case also asserts the hash moved off the
+    unblocked one -- otherwise a block that silently failed to apply would
+    pass this test while proving nothing.
+    """
+
+    @pytest.mark.parametrize(
+        "init_script",
+        [CANVAS_RETURNS_NULL, CANVAS_THROWS],
+        ids=["canvas-and-webgl-return-null", "canvas-and-webgl-throw"],
+    )
+    def test_it_still_posts_a_hash_with_canvas_and_webgl_blocked(self, browser, init_script):
+        unblocked = json.loads(_capture(browser))["fingerprint_hash"]
+        body = _capture(browser, init_script=init_script)
+
+        assert body is not None, "the script never called /microguard/fp with canvas blocked"
+        digest = json.loads(body)["fingerprint_hash"]
+        assert len(digest) == 64
+        int(digest, 16)
+        assert digest != unblocked, "the block did not apply; this test proved nothing"
 
 
 class TestPrivacy:
