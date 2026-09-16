@@ -8,6 +8,7 @@ from microguard.evaluate import (
     UNLABELED,
     Actor,
     build_actors,
+    mask_ip,
     render_report,
     rule_name,
 )
@@ -15,10 +16,10 @@ from microguard.evaluate import (
 UA = "Mozilla/5.0 (X11; Linux x86_64)"
 
 
-def _line(ip, method, url, second=0):
+def _line(ip, method, url, second=0, status=200):
     return (
         f'{ip} - - [16/Sep/2026:10:00:{second:02d} +0000] '
-        f'"{method} {url} HTTP/1.1" 200 512 "-" "{UA}"'
+        f'"{method} {url} HTTP/1.1" {status} 512 "-" "{UA}"'
     )
 
 
@@ -109,6 +110,18 @@ class TestBuildActors:
 
         assert skipped == 1
 
+    def test_a_failed_fingerprint_post_does_not_count(self, nginx_log_file, tmp_path):
+        """A 429 (rate-limited) POST never reached the collector server."""
+        log = nginx_log_file([
+            _line("198.51.100.3", "GET", "/?ref=k7q2"),
+            _line("198.51.100.3", "POST", "/microguard/fp", second=1, status=429),
+        ])
+
+        actors, _ = build_actors([log], _collect(tmp_path), ["k7q2"])
+
+        assert actors["198.51.100.3"].ran_fingerprint is False
+        assert actors["198.51.100.3"].truth == UNLABELED
+
 
 class TestRuleName:
     def test_strips_the_per_session_detail(self):
@@ -119,6 +132,17 @@ class TestRuleName:
         assert rule_name("vulnerability scanner pattern detected") == (
             "vulnerability scanner pattern detected"
         )
+
+
+class TestMaskIp:
+    def test_ipv4_hides_the_last_octet(self):
+        assert mask_ip("198.51.100.7") == "198.51.100.x"
+
+    def test_ipv6_keeps_only_the_first_three_groups(self):
+        assert mask_ip("2001:db8:85a3::8a2e:370:7334") == "2001:0db8:85a3:x"
+
+    def test_unparseable_input_is_fully_masked(self):
+        assert mask_ip("not-an-ip") == "x"
 
 
 class TestReport:
@@ -179,3 +203,19 @@ class TestReport:
         })
 
         assert "| uniform timing | 1 | 0 | 0 |" in report
+
+    def test_redact_ips_masks_the_unlabeled_flagged_table(self):
+        report = render_report(
+            {"198.51.100.7": Actor(max_score=0.97, requests=4)},
+            redact_ips=True,
+        )
+
+        assert "198.51.100.7" not in report
+        assert "| 198.51.100.x | 0.97 | 4 |" in report
+
+    def test_without_redact_ips_the_raw_ip_is_shown(self):
+        report = render_report(
+            {"198.51.100.7": Actor(max_score=0.97, requests=4)},
+        )
+
+        assert "| 198.51.100.7 | 0.97 | 4 |" in report

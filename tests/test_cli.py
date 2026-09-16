@@ -1045,3 +1045,41 @@ class TestEvaluateCommand:
             cli_module.main()
 
         assert exc.value.code == 2
+
+    def test_redact_ips_masks_the_report(self, monkeypatch, capsys, tmp_path, nginx_log_file):
+        log = nginx_log_file([
+            (
+                '198.51.100.7 - - [16/Sep/2026:10:00:00 +0000] '
+                '"GET / HTTP/1.1" 200 512 "-" "curl/8.0"'
+            ),
+        ])
+        collected = tmp_path / "collected.jsonl"
+        DecisionCollector(collected).record({
+            "id": "d1", "features": [0.0] * NUM_FEATURES, "score": 0.97,
+            "heuristic_label": "bot", "heuristic_reason": "attack tool UA: curl/8.0",
+            "ip": "198.51.100.7", "blocked": False,
+        })
+        monkeypatch.setattr(sys, "argv", [
+            "microguard", "evaluate", "--access-log", log,
+            "--collected", str(collected), "--invite-token", "k7q2",
+            "--redact-ips",
+        ])
+
+        cli_module.main()
+
+        out = capsys.readouterr().out
+        assert "198.51.100.7" not in out
+        assert "198.51.100.x" in out
+
+    def test_a_missing_access_log_exits_cleanly(self, monkeypatch, capsys, tmp_path):
+        missing = str(tmp_path / "does-not-exist.log")
+        monkeypatch.setattr(sys, "argv", [
+            "microguard", "evaluate", "--access-log", missing,
+            "--collected", str(tmp_path / "c.jsonl"), "--invite-token", "k7q2",
+        ])
+
+        with pytest.raises(SystemExit) as exc:
+            cli_module.main()
+
+        assert exc.value.code == 1
+        assert "❌ Error" in capsys.readouterr().err

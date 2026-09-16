@@ -424,6 +424,10 @@ def main():
         '--invite-token', action='append', required=True,
         help='A ?ref= value you shared privately; repeat once per channel'
     )
+    evaluate_parser.add_argument(
+        '--redact-ips', action='store_true',
+        help='Mask IPs in the unlabeled-flagged table, for a report you commit'
+    )
 
     # dashboard command — API + built SPA on one port
     dashboard_parser = subparsers.add_parser(
@@ -799,8 +803,12 @@ def main():
 
     elif args.command == 'evaluate':
         from .evaluate import build_actors, render_report
-        actors, skipped = build_actors(args.access_log, args.collected, args.invite_token)
-        print(render_report(actors, skipped_rows=skipped))
+        try:
+            actors, skipped = build_actors(args.access_log, args.collected, args.invite_token)
+        except OSError as e:
+            print(f"❌ Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(render_report(actors, skipped_rows=skipped, redact_ips=args.redact_ips))
 
     elif args.command == 'dashboard':
         from .dashboard.server import run_dashboard

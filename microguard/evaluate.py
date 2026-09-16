@@ -20,6 +20,7 @@ Stdlib only, like collect.py, so it runs wherever the archive is copied to.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -105,7 +106,11 @@ def build_actors(
                 actor.hit_probe = True
             if tokens.intersection(parse_qs(parts.query).get(INVITE_PARAM, [])):
                 actor.invited = True
-            if entry.method == "POST" and parts.path == FINGERPRINT_PATH:
+            if (
+                entry.method == "POST"
+                and parts.path == FINGERPRINT_PATH
+                and entry.status == 200
+            ):
                 actor.ran_fingerprint = True
 
     rows, skipped = load_collected(collected_path, report_skipped=True)
@@ -134,7 +139,26 @@ def _ratio(actors: Iterable[Actor], truth: str, flagged: Callable[[Actor], bool]
     return f"{sum(flagged(a) for a in members)}/{len(members)}"
 
 
-def render_report(actors: dict[str, Actor], skipped_rows: int = 0) -> str:
+def mask_ip(ip: str) -> str:
+    """Mask a client IP so a report can be committed without publishing it.
+
+    IPv4: last octet -> x. IPv6: everything past the first three groups -> x.
+    Anything that doesn't parse as an IP is masked entirely.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return "x"
+    if addr.version == 4:
+        a, b, c, _ = str(addr).split(".")
+        return f"{a}.{b}.{c}.x"
+    groups = addr.exploded.split(":")
+    return ":".join(groups[:3]) + ":x"
+
+
+def render_report(
+    actors: dict[str, Actor], skipped_rows: int = 0, redact_ips: bool = False
+) -> str:
     scored = {ip: a for ip, a in actors.items() if a.max_score is not None}
     truths = Counter(a.truth for a in scored.values())
     honeypot_only = [a for a in scored.values() if not a.hit_probe]
@@ -180,8 +204,9 @@ def render_report(actors: dict[str, Actor], skipped_rows: int = 0) -> str:
         "",
         (
             "Flagged means at least one request scored above the threshold. "
-            "Honeypot-only bots never requested a probe path, so the scanner rule "
-            "cannot have caught them by matching the path that labeled them."
+            "Honeypot-only bots never requested a path in the probe list, which "
+            "narrows (does not eliminate) overlap with the scanner rule, whose "
+            "patterns are wider."
         ),
         "",
         "| flag rule | bots caught | honeypot-only bots caught | humans flagged |",
@@ -224,6 +249,7 @@ def render_report(actors: dict[str, Actor], skipped_rows: int = 0) -> str:
         "|---|---|---|",
     ]
     for ip, actor in grey[:UNLABELED_LISTED]:
-        lines.append(f"| {ip} | {actor.max_score:.2f} | {actor.requests} |")
+        shown_ip = mask_ip(ip) if redact_ips else ip
+        lines.append(f"| {shown_ip} | {actor.max_score:.2f} | {actor.requests} |")
 
     return "\n".join(lines) + "\n"

@@ -26,3 +26,6 @@ node_modules/
 .DS_Store
 .opencode/
 linkedin-assets/
+# Raw access logs and the collected archive pulled down for live evaluation;
+# both contain visitor IPs.
+eval/

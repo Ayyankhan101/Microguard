@@ -185,15 +185,17 @@ microguard evaluate --access-log access.log [--access-log access.log-20260917.gz
 | `--access-log` | required | nginx combined log. Repeat for rotated files |
 | `--collected` | required | The archive `serve --collect-to` wrote |
 | `--invite-token` | required | A `?ref=` value shared privately. Repeat per channel |
+| `--redact-ips` | off | Mask IPs in the unlabeled-flagged table (IPv4 last octet, IPv6 past the first three groups), for a report you commit |
 
 An actor is a client IP. It is a **bot** if it requested `/_hp/` or an exploit
 probe, a **human** if it arrived with an invite token and posted
 `/microguard/fp`, and **unlabeled** otherwise. Its verdict is its highest
 score. Prints markdown: actor counts, a fingerprint health line, caught and
-flagged counts per threshold (with a honeypot-only column that the scanner rule
-cannot inflate), the heuristic reasons by class, and the unlabeled actors the
-default threshold would block. Fewer than 30 labeled actors in either class is
-reported as inconclusive. See
+flagged counts per threshold (with a honeypot-only column — bots that never
+requested a path in the probe list, which narrows but does not eliminate
+overlap with the scanner rule, whose patterns are wider), the heuristic
+reasons by class, and the unlabeled actors the default threshold would block.
+Fewer than 30 labeled actors in either class is reported as inconclusive. See
 [howto-evaluate-on-live-traffic.md](howto-evaluate-on-live-traffic.md).
 
 ## `microguard retrain`
