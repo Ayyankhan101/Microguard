@@ -122,10 +122,12 @@ server {
     # The fingerprint routes: public by design, answering 200 with identical
     # bytes for every outcome, so they cannot be used as an oracle. Same block
     # as docs/howto-deploy-behind-nginx.md. fingerprint.js posts to
-    # /microguard/fp, so this prefix is the one that has to match, and
+    # /microguard/fp, so these are the routes that have to match, and
     # X-Real-IP binds the hash to the visitor rather than to 127.0.0.1.
-    location /microguard/ {
-        proxy_pass http://127.0.0.1:8400/;
+    # Exact matches, never a prefix: a prefix location with a URI in
+    # proxy_pass would also publish /check as /microguard/check.
+    location = /microguard/fp {
+        proxy_pass http://127.0.0.1:8400/fp;
         client_max_body_size  2k;
         client_body_timeout   5s;
         send_timeout          5s;
@@ -133,6 +135,10 @@ server {
         limit_req zone=microguard_fp burst=5 nodelay;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For "";
+    }
+
+    location = /microguard/fingerprint.js {
+        proxy_pass http://127.0.0.1:8400/fingerprint.js;
     }
 
     location / {
