@@ -213,3 +213,38 @@ jobs:
             echo "::error::API fixtures are stale - run 'python gui/scripts/capture_fixtures.py' and commit the result"
             exit 1
           fi
+
+  typecheck:
+    # mypy is in the health stack and requirements-dev.txt, but no job ran it.
+    # So a local run reported 17 errors that CI never saw: redis-py 5.0.1 types
+    # Redis.from_url as returning None, and the live extra allowed it.
+    #
+    # One runner: a type check gives the same answer on every OS. Python 3.10
+    # because it is the oldest version setup.py supports, and mypy checks the
+    # stdlib API of the interpreter it runs under -- checking on 3.13 would pass
+    # a call that does not exist on 3.10.
+    #
+    # Same extras as the matrix, deliberately without [mlflow]: tracking.py
+    # imports it lazily, so a checkout without it is a supported install and
+    # must type-check too.
+    name: typecheck (mypy)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[live,fastapi,flask,dashboard]"
+          # Pinned so a new mypy release cannot turn an unrelated PR red. Bump
+          # it on purpose, in its own change.
+          pip install "mypy==2.3.1"
+
+      - name: Run mypy
+        run: mypy microguard
