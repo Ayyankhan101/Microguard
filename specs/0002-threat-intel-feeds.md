@@ -163,7 +163,8 @@ that erodes trust fast.
    calls any of the threat-intel functions — verified by mocking them and
    asserting zero calls.
 7. `microguard scan` against the existing `data/sample_access.log` and
-   `data/all_access.log` fixtures produces identical results before and
+   `data/zenodo_data/organization-x/log/apache2/web-access.log.1` fixtures
+   produces identical results before and
    after this change is merged, WITH threat intel disabled via the env var
    (proves this is purely additive when off) — run the existing test suite,
    it must still pass unmodified.
