@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13">
+<rect width="720" height="420" fill="none"/>
+<text x="56" y="22" font-size="15" font-weight="600" fill="currentColor">Recall by evasion level — default config</text>
+<line x1="56" y1="374.0" x2="510" y2="374.0" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="48" y="378.0" text-anchor="end" fill="currentColor" fill-opacity="0.7">0%</text>
+<line x1="56" y1="290.5" x2="510" y2="290.5" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="48" y="294.5" text-anchor="end" fill="currentColor" fill-opacity="0.7">25%</text>
+<line x1="56" y1="207.0" x2="510" y2="207.0" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="48" y="211.0" text-anchor="end" fill="currentColor" fill-opacity="0.7">50%</text>
+<line x1="56" y1="123.5" x2="510" y2="123.5" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="48" y="127.5" text-anchor="end" fill="currentColor" fill-opacity="0.7">75%</text>
+<line x1="56" y1="40.0" x2="510" y2="40.0" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="48" y="44.0" text-anchor="end" fill="currentColor" fill-opacity="0.7">100%</text>
+<text x="16" y="207.0" fill="currentColor" fill-opacity="0.7" transform="rotate(-90 16 207.0)" text-anchor="middle">recall (bots caught)</text>
+<text x="56.0" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L0</text>
+<text x="131.7" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L1</text>
+<text x="207.3" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L2</text>
+<text x="283.0" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L3</text>
+<text x="358.7" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L4</text>
+<text x="434.3" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L5</text>
+<text x="510.0" y="396" text-anchor="middle" fill="currentColor" fill-opacity="0.8">L5-farm</text>
+<path d="M56.0,77.1 L131.7,374.0 L207.3,374.0 L283.0,374.0 L358.7,374.0 L434.3,374.0 L510.0,374.0" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="77.1" r="3.4" fill="#9ca3af"/>
+<circle cx="131.7" cy="374.0" r="3.4" fill="#9ca3af"/>
+<circle cx="207.3" cy="374.0" r="3.4" fill="#9ca3af"/>
+<circle cx="283.0" cy="374.0" r="3.4" fill="#9ca3af"/>
+<circle cx="358.7" cy="374.0" r="3.4" fill="#9ca3af"/>
+<circle cx="434.3" cy="374.0" r="3.4" fill="#9ca3af"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#9ca3af"/>
+<path d="M56.0,336.9 L131.7,336.9 L207.3,336.9 L283.0,374.0 L358.7,374.0 L434.3,374.0 L510.0,374.0" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="336.9" r="3.4" fill="#f59e0b"/>
+<circle cx="131.7" cy="336.9" r="3.4" fill="#f59e0b"/>
+<circle cx="207.3" cy="336.9" r="3.4" fill="#f59e0b"/>
+<circle cx="283.0" cy="374.0" r="3.4" fill="#f59e0b"/>
+<circle cx="358.7" cy="374.0" r="3.4" fill="#f59e0b"/>
+<circle cx="434.3" cy="374.0" r="3.4" fill="#f59e0b"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#f59e0b"/>
+<path d="M56.0,262.7 L131.7,262.7 L207.3,262.7 L283.0,262.7 L358.7,290.5 L434.3,262.7 L510.0,374.0" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="262.7" r="3.4" fill="#a78bfa"/>
+<circle cx="131.7" cy="262.7" r="3.4" fill="#a78bfa"/>
+<circle cx="207.3" cy="262.7" r="3.4" fill="#a78bfa"/>
+<circle cx="283.0" cy="262.7" r="3.4" fill="#a78bfa"/>
+<circle cx="358.7" cy="290.5" r="3.4" fill="#a78bfa"/>
+<circle cx="434.3" cy="262.7" r="3.4" fill="#a78bfa"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#a78bfa"/>
+<path d="M56.0,314.6 L131.7,307.2 L207.3,307.2 L283.0,273.8 L358.7,215.3 L434.3,240.4 L510.0,374.0" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="314.6" r="3.4" fill="#38bdf8"/>
+<circle cx="131.7" cy="307.2" r="3.4" fill="#38bdf8"/>
+<circle cx="207.3" cy="307.2" r="3.4" fill="#38bdf8"/>
+<circle cx="283.0" cy="273.8" r="3.4" fill="#38bdf8"/>
+<circle cx="358.7" cy="215.3" r="3.4" fill="#38bdf8"/>
+<circle cx="434.3" cy="240.4" r="3.4" fill="#38bdf8"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#38bdf8"/>
+<path d="M56.0,40.0 L131.7,40.0 L207.3,99.4 L283.0,151.3 L358.7,40.0 L434.3,151.3 L510.0,374.0" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="40.0" r="3.4" fill="#34d399"/>
+<circle cx="131.7" cy="40.0" r="3.4" fill="#34d399"/>
+<circle cx="207.3" cy="99.4" r="3.4" fill="#34d399"/>
+<circle cx="283.0" cy="151.3" r="3.4" fill="#34d399"/>
+<circle cx="358.7" cy="40.0" r="3.4" fill="#34d399"/>
+<circle cx="434.3" cy="151.3" r="3.4" fill="#34d399"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#34d399"/>
+<path d="M56.0,40.0 L131.7,225.6 L207.3,225.6 L283.0,262.7 L358.7,290.5 L434.3,262.7 L510.0,374.0" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="40.0" r="3.4" fill="#ef4444"/>
+<circle cx="131.7" cy="225.6" r="3.4" fill="#ef4444"/>
+<circle cx="207.3" cy="225.6" r="3.4" fill="#ef4444"/>
+<circle cx="283.0" cy="262.7" r="3.4" fill="#ef4444"/>
+<circle cx="358.7" cy="290.5" r="3.4" fill="#ef4444"/>
+<circle cx="434.3" cy="262.7" r="3.4" fill="#ef4444"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#ef4444"/>
+<path d="M56.0,40.0 L131.7,40.0 L207.3,40.0 L283.0,40.0 L358.7,123.5 L434.3,40.0 L510.0,374.0" fill="none" stroke="#fb7185" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="56.0" cy="40.0" r="3.4" fill="#fb7185"/>
+<circle cx="131.7" cy="40.0" r="3.4" fill="#fb7185"/>
+<circle cx="207.3" cy="40.0" r="3.4" fill="#fb7185"/>
+<circle cx="283.0" cy="40.0" r="3.4" fill="#fb7185"/>
+<circle cx="358.7" cy="123.5" r="3.4" fill="#fb7185"/>
+<circle cx="434.3" cy="40.0" r="3.4" fill="#fb7185"/>
+<circle cx="510.0" cy="374.0" r="3.4" fill="#fb7185"/>
+<rect x="526" y="35" width="14" height="4" rx="2" fill="#9ca3af"/>
+<text x="546" y="40" fill="currentColor">UA regex<tspan fill-opacity="0.55">  (0% (0/175))</tspan></text>
+<rect x="526" y="59" width="14" height="4" rx="2" fill="#f59e0b"/>
+<text x="546" y="64" fill="currentColor">rate limit<tspan fill-opacity="0.55">  (0% (0/175))</tspan></text>
+<rect x="526" y="83" width="14" height="4" rx="2" fill="#a78bfa"/>
+<text x="546" y="88" fill="currentColor">path blocklist<tspan fill-opacity="0.55">  (0% (0/175))</tspan></text>
+<rect x="526" y="107" width="14" height="4" rx="2" fill="#38bdf8"/>
+<text x="546" y="112" fill="currentColor">CrowdSec<tspan fill-opacity="0.55">  (0% (0/175))</tspan></text>
+<rect x="526" y="131" width="14" height="4" rx="2" fill="#34d399"/>
+<text x="546" y="136" fill="currentColor">microguard scan<tspan fill-opacity="0.55">  (5% (9/175))</tspan></text>
+<rect x="526" y="155" width="14" height="4" rx="2" fill="#ef4444"/>
+<text x="546" y="160" fill="currentColor">microguard (blend)<tspan fill-opacity="0.55">  (0% (0/175))</tspan></text>
+<rect x="526" y="179" width="14" height="4" rx="2" fill="#fb7185"/>
+<text x="546" y="184" fill="currentColor">microguard (rules)<tspan fill-opacity="0.55">  (0% (0/175))</tspan></text>
+</svg>
