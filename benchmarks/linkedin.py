@@ -30,30 +30,29 @@ def headline_numbers(scored: dict) -> list[tuple[str, str]]:
     config = "default" if "default" in scored["seeds"] else next(iter(scored["seeds"]))
     numbers: list[tuple[str, str]] = []
 
-    # 1. blend vs UA regex once the UA is spoofed (L1).
-    blend_l1 = _recall(cells, config, "L1", "mg_blend")
+    # 1. the rules vs a UA blocklist once the UA is spoofed (L1). The rules are
+    #    microguard's actual detection; the blend's 0.85 threshold is a separate
+    #    (reported) caveat.
+    rules_l1 = _recall(cells, config, "L1", "mg_heuristic")
     ua_l1 = _recall(cells, config, "L1", "ua_regex")
-    if blend_l1 is not None and ua_l1 is not None:
+    if rules_l1 is not None and ua_l1 is not None:
         numbers.append((
-            f"{blend_l1 * 100:.0f}% vs {ua_l1 * 100:.0f}%",
-            "bots caught once they fake a browser UA — microguard vs a UA blocklist"))
+            f"{rules_l1 * 100:.0f}% vs {ua_l1 * 100:.0f}%",
+            "bots caught once they fake a browser UA — microguard's rules vs a UA blocklist"))
 
-    # 2. human false-positive rate at the shipping threshold.
-    hfpr = cells.get(f"{config}/humans", {}).get("mg_blend", {}).get("fpr")
+    # 2. human false-positive rate.
+    hfpr = cells.get(f"{config}/humans", {}).get("mg_heuristic", {}).get("fpr")
     if hfpr:
         numbers.append((f"{hfpr['k']} / {hfpr['n']}",
-                        "real humans wrongly flagged at the default block threshold"))
+                        "simulated humans wrongly flagged by the rules (see the report for real traffic)"))
 
-    # 3. where even a real browser stops helping the bot (worst level for blend).
-    worst = min(
-        ((lvl, _recall(cells, config, lvl, "mg_blend")) for lvl in LADDER_ORDER
-         if _recall(cells, config, lvl, "mg_blend") is not None),
-        key=lambda p: p[1], default=(None, None))
-    if worst[0] is not None:
+    # 3. the distributed browser farm — the one case the rules miss.
+    farm = _recall(cells, config, "L5-farm", "mg_heuristic")
+    if farm is not None:
         numbers.append((
-            f"{worst[1] * 100:.0f}%",
-            (f"recall at {worst[0]} — the low-and-slow distributed browser farm, "
-             "microguard's hardest case")))
+            f"{farm * 100:.0f}%",
+            ("recall on the distributed browser farm — the rules' blind spot, and why "
+             "the fingerprint signal exists")))
     return numbers[:3]
 
 
@@ -63,12 +62,12 @@ def build_card(scored: dict) -> str:
     levels = [lvl for lvl in LADDER_ORDER if f"{config}/{lvl}" in cells]
     series = {}
     fpr = {}
-    for det in ("ua_regex", "rate_limit", "crowdsec", "mg_blend"):
+    for det in ("ua_regex", "rate_limit", "crowdsec", "mg_heuristic"):
         row = [_recall(cells, config, lvl, det) for lvl in levels]
         if any(v is not None for v in row):
             series[det] = row
             h = cells.get(f"{config}/humans", {}).get(det, {}).get("fpr")
-            fpr[det] = f"{h['k']}/{h['n']} humans" if h else ""
+            fpr[det] = f"{h['k']}/{h['n']} FP" if h else ""
     chart = ladder_chart(levels, series, fpr, title="")
 
     tiles = "".join(
@@ -91,9 +90,9 @@ def build_card(scored: dict) -> str:
       .foot {{ color: #64748b; font-size: 14px; margin-top: 20px; }}
     </style></head><body>
       <h1>Microguard vs. bots that fake being human</h1>
-      <div class="sub">Detection built on a 2&nbsp;KB micrograd model, measured against
-        the alternatives an operator would actually deploy — on the same bots at rising
-        levels of evasion. Rules fixed before any run.</div>
+      <div class="sub">A bot detector (heuristic rules + a 2&nbsp;KB micrograd model),
+        measured against the alternatives an operator would actually deploy — on the same
+        bots at rising levels of evasion. Grading rules fixed before any run.</div>
       <div class="tiles">{tiles}</div>
       <div class="chart">{chart}</div>
       <div class="foot">Recall vs. evasion level (L0 = announces itself, L5-farm = a real
