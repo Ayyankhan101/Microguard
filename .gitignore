@@ -32,3 +32,7 @@ eval/
 
 # lab runtime output
 scripts/lab/.run/
+
+# benchmark downloads (public datasets, large) and raw per-run output
+benchmarks/data/
+benchmarks/results/
