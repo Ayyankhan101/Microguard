@@ -118,6 +118,48 @@ def _ladder_section(scored: dict) -> tuple[str, dict]:
             md.append(f"| {LABELS.get(base, base)} | " + " | ".join(marks) + " |")
         md.append("")
 
+    # A data-driven reading of the two structural findings.
+    md.append("### What the ladder shows\n")
+    config = configs[0] if configs else "default"
+
+    def rec(level, det):
+        r = cells.get(f"{config}/{level}", {}).get(det, {}).get("recall")
+        return r["value"] if r and r.get("n") else None
+
+    gaps = []
+    for lvl in LADDER_ORDER:
+        h, b = rec(lvl, "mg_heuristic"), rec(lvl, "mg_blend")
+        if h is not None and b is not None and h - b >= 0.2:
+            gaps.append((lvl, h, b))
+    if gaps:
+        worst = max(gaps, key=lambda g: g[1] - g[2])
+        md.append(
+            f"- **The shipped blend throws away most of what the rules catch.** At "
+            f"{worst[0]} the rule labeler flags {worst[1] * 100:.0f}% of bots but the "
+            f"blend at its default 0.85 threshold flags only {worst[2] * 100:.0f}%. "
+            f"`compute_combined_score` floors a bot at the rule's own confidence, and "
+            f"the rules that survive a spoofed UA (rate, repeat-endpoint, no-referrer) "
+            f"sit at 0.70–0.85 — at or below the 0.85 block bar. Only the 0.90+ rules "
+            f"clear it. An operator running the blend as shipped gets materially worse "
+            f"recall than the rule labeler alone; the threshold, not the model, is the "
+            f"limiting factor.\n")
+    farm_default = rec("L5-farm", "mg_heuristic")
+    farm_promoted = None
+    if "promoted" in scored["seeds"]:
+        fr = cells.get("promoted/L5-farm", {}).get("mg_heuristic", {}).get("recall")
+        farm_promoted = fr["value"] if fr and fr.get("n") else None
+    if farm_default is not None:
+        line = (f"- **The distributed browser farm is the rules' blind spot.** The "
+                f"L5-farm — one real browser profile across ten IPs, low volume each — "
+                f"is caught {farm_default * 100:.0f}% by the rules in the default config")
+        if farm_promoted is not None:
+            line += (f", and {farm_promoted * 100:.0f}% once the fingerprint signal is "
+                     f"promoted (the shared-fingerprint-across-IPs rule is the one signal "
+                     f"IP reputation structurally cannot provide)")
+        line += (". This is the case volume and path heuristics cannot see, and the "
+                 "reason the fingerprint signal exists.\n")
+        md.append(line)
+
     spread = scored.get("model_spread", {})
     md.append("### The shipped model on the live path\n")
     for config, s in spread.items():
