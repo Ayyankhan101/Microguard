@@ -30,10 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def _load_model(
-    model_path: str | Path | None = None,
-    use_registry: bool = False,
-) -> BotDetector | None:
+def _load_model(model_path: str | Path | None = None) -> BotDetector | None:
     """Load the trained model, returning None if it cannot be loaded.
 
     A None here is not benign: score_request falls back to model_score = 0.0,
@@ -43,27 +40,8 @@ def _load_model(
     repo and said nothing when it came up empty. Every failure path now logs.
 
     Args:
-        model_path: Path to local model file. Ignored if use_registry=True.
-        use_registry: If True, load from Databricks Model Registry.
+        model_path: Path to local model file.
     """
-    if use_registry:
-        try:
-            from ..tracking import load_model as load_registry_model
-            pyfunc = load_registry_model()
-            detector = pyfunc._model_impl.python_model.detector
-            logger.info("loaded model from Databricks Registry")
-            return detector
-        except ImportError:
-            logger.warning(
-                "MLflow not installed - cannot load from Registry, "
-                "falling back to local file"
-            )
-        except Exception:
-            logger.warning(
-                "Registry load failed - falling back to local file",
-                exc_info=True,
-            )
-
     if model_path is None:
         model_path = DEFAULT_MODEL_PATH
     if not Path(model_path).exists():

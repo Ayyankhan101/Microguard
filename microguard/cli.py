@@ -48,7 +48,7 @@ def scan_logfile(
         filepath: Path to the log file
         fmt: Log format ('auto', 'nginx', 'json')
         threshold: Bot score threshold (above this = bot)
-        model_path: Path to pre-trained model, or '__registry__' for Databricks Registry
+        model_path: Path to pre-trained model
         timeout_minutes: Session timeout in minutes
     
     Returns:
@@ -90,28 +90,15 @@ def scan_logfile(
     # Load model (if available)
     model = None
     
-    if model_path == '__registry__':
-        # Load from Databricks Registry
+    if os.path.exists(model_path):
         try:
-            from .tracking import load_model as load_registry_model
-            pyfunc = load_registry_model()
-            model = pyfunc._model_impl.python_model.detector
-            print("🧠 Loaded model from Databricks Registry", file=sys.stderr)
-        except Exception as e:  # noqa: BLE001 — registry load is best-effort, falls back to heuristics
-            print(f"⚠️  Registry load failed: {e}", file=sys.stderr)
+            model = BotDetector(model_path)
+            print("🧠 Loaded pre-trained model", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 — model load is best-effort, falls back to heuristics
+            print(f"⚠️  Could not load model: {e}", file=sys.stderr)
             print("   Falling back to heuristic rules only", file=sys.stderr)
     else:
-        model_available = os.path.exists(model_path)
-        
-        if model_available:
-            try:
-                model = BotDetector(model_path)
-                print("🧠 Loaded pre-trained model", file=sys.stderr)
-            except Exception as e:  # noqa: BLE001 — model load is best-effort, falls back to heuristics
-                print(f"⚠️  Could not load model: {e}", file=sys.stderr)
-                print("   Falling back to heuristic rules only", file=sys.stderr)
-        else:
-            print("📋 No pre-trained model found, using heuristic rules", file=sys.stderr)
+        print("📋 No pre-trained model found, using heuristic rules", file=sys.stderr)
     
     # Analyze each session
     session_results = []
@@ -269,17 +256,6 @@ def main():
         '--watch', '-w',
         action='store_true',
         help='Continuously monitor log file for new bot traffic (tails the file)'
-    )
-    scan_parser.add_argument(
-        '--no-mlflow',
-        action='store_true',
-        help='Disable MLflow logging for this scan (enabled by default)'
-    )
-    scan_parser.add_argument(
-        '--model-source',
-        choices=['local', 'registry'],
-        default='local',
-        help='Load model from local file or Databricks Registry (default: local)'
     )
     
     # serve command — live check server for nginx auth_request
@@ -579,19 +555,8 @@ def main():
             print(f"❌ Error: Log file not found: {args.logfile}", file=sys.stderr)
             sys.exit(1)
         
-        # Determine model path based on source
         model_path = args.model
-        if args.model_source == 'registry':
-            try:
-                from .tracking import load_model as load_registry_model
-                load_registry_model()
-                model_path = '__registry__'
-                print("🧠 Loading model from Databricks Registry...", file=sys.stderr)
-            except ImportError:
-                print("⚠️  MLflow not installed — falling back to local model", file=sys.stderr)
-            except Exception as e:  # noqa: BLE001 — registry load is best-effort, falls back to the local model
-                print(f"⚠️  Registry load failed: {e} — falling back to local model", file=sys.stderr)
-        
+
         # Run scan
         results = scan_logfile(
             filepath=args.logfile,
@@ -634,34 +599,6 @@ def main():
             _write_report(args.output_file, content)
         else:
             print_report(results, fmt=args.output)
-        
-        # Log to MLflow (unless disabled)
-        if not args.no_mlflow:
-            try:
-                from .tracking import init, log_metrics, start_run
-                init()
-                with start_run(run_name=f"scan-{os.path.basename(args.logfile)}"):
-                    log_metrics({
-                        "sessions": results['total_sessions'],
-                        "bots": results['bot_count'],
-                        "humans": results['human_count'],
-                        "bot_rate": results['bot_rate'],
-                    })
-            except ImportError:
-                pass  # MLflow is an optional extra — absent is not broken.
-            except Exception as e:  # noqa: BLE001 — tracking never decides a scan's verdict
-                # Loud, but not fatal. Without credentials init() raises and
-                # the scan used to exit normally having recorded nothing, so a
-                # run that tracked nothing looked exactly like one that did.
-                # Name the URI: "it failed" without "pointing where" sends you
-                # looking in the wrong place.
-                from .tracking import resolved_tracking_uri
-                print(
-                    f"⚠️  MLflow logging failed (tracking URI: "
-                    f"{resolved_tracking_uri()}): {e}",
-                    file=sys.stderr,
-                )
-                print("   The scan itself is unaffected.", file=sys.stderr)
         
         # Exit code: 1 if bots detected above threshold
         if results['bot_rate'] > 0.1:

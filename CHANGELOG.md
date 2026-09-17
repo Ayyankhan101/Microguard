@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- **The entire Databricks + MLflow integration.** A 2 KB, 19-feature,
+  4-neuron micrograd model does not need experiment tracking or a cloud model
+  registry, and the surface was net-negative: the test suite once logged to a
+  real workspace, and it drove the redis-type and normalization fallout. Gone:
+  `microguard/tracking.py`, the `/api/mlflow/runs` dashboard route
+  (`api_mlflow.py`), the `--model-source registry` / `--no-mlflow` CLI flags
+  and `__registry__` model path, MLflow logging in `train`/`scan`, the
+  `[mlflow]` extra, the `databricks-app/` deployment harness, and
+  `scripts/deploy-databricks.sh`. The dashboard SPA never called the MLflow
+  route. Detection is unchanged; it never depended on any of this. See #24.
+
 ## [3.0.1] - 2026-09-12
 
 ### Fixed

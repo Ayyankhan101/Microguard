@@ -63,17 +63,6 @@ api_live.write_config
 _.check_token
 _.model_config
 
-# MLflow / Databricks surface. None of these are called by name from this
-# package: the route is registered by decoration, and the pyfunc wrapper and
-# its load_context hook are instantiated by mlflow when it loads a model from
-# the Registry.
-from microguard import tracking
-from microguard.dashboard import api_mlflow
-
-api_mlflow.mlflow_runs
-tracking.BotDetectorPyFunc
-_.load_context
-
 # The read-back half of the collection archive. Nothing in the package calls
 # it yet -- the writer runs in `serve`, and the reader is what a dataset
 # builder will use once observe-only collection has produced rows worth
