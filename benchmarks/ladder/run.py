@@ -87,6 +87,12 @@ class Services:
 
     def _wait_serve(self) -> None:
         for _ in range(50):
+            if self.procs[0].poll() is not None:  # died on a bound port
+                log = (self.workdir / "serve.log").read_text(encoding="utf-8", errors="replace")
+                raise RuntimeError(
+                    f"serve exited during startup (port {SERVE_PORT} already in "
+                    f"use?). Last serve.log:\n{log[-400:]}"
+                )
             try:
                 httpx.get(f"http://127.0.0.1:{SERVE_PORT}/check",
                           headers={"X-Real-IP": "9.9.9.9", "X-Original-URI": "/"}, timeout=1)
@@ -97,6 +103,15 @@ class Services:
 
     def _wait_nginx(self) -> None:
         for _ in range(50):
+            # A stale server already on :8080 would answer 200 and silently
+            # eat the run's traffic (its access.log lands elsewhere), so a bind
+            # failure must be fatal rather than something we serve past.
+            if self.procs[-1].poll() is not None:
+                log = (self.workdir / "error.log").read_text(encoding="utf-8", errors="replace")
+                raise RuntimeError(
+                    f"nginx exited during startup (port {NGINX_PORT} already in "
+                    f"use?). Last error.log:\n{log[-400:]}"
+                )
             try:
                 r = httpx.get(f"http://127.0.0.1:{NGINX_PORT}/",
                               headers={"X-Forwarded-For": "203.0.113.1"}, timeout=1)
