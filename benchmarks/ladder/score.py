@@ -188,22 +188,28 @@ def _render(cells, seeds_seen, per_seed_recall, model_spread) -> dict:
             rendered[name] = entry
         out["cells"][cell_key] = rendered
 
-    # "Beats" table (rule 2): mg_blend vs each baseline, per bot level.
-    out["beats"] = {}
-    for cell_key, detectors in cells.items():
-        if "/humans" in cell_key or "mg_blend" not in detectors:
-            continue
-        config = cell_key.split("/")[0]
-        blend = detectors["mg_blend"]["recall"]
-        blend_fp = cells[f"{config}/humans"]["mg_blend"]["fpr"]
-        row = {}
-        for name in ("ua_regex", "rate_limit", "path_blocklist", "crowdsec", "mg_scan"):
-            if name not in detectors:
+    # "Beats" table (rule 2): the shipped blend, and separately the rule
+    # labeler, vs each baseline per bot level. The pre-registered test is on
+    # mg_blend; mg_heuristic is added because "the rules beat the baselines" is
+    # the stronger honest claim and the recall table already shows the gap.
+    baselines = ("ua_regex", "rate_limit", "path_blocklist", "crowdsec", "mg_scan")
+    for subject in ("mg_blend", "mg_heuristic"):
+        key = "beats" if subject == "mg_blend" else "beats_heuristic"
+        out[key] = {}
+        for cell_key, detectors in cells.items():
+            if "/humans" in cell_key or subject not in detectors:
                 continue
-            base = detectors[name]["recall"]
-            base_fp = cells[f"{config}/humans"][name]["fpr"]
-            row[name] = bool(clearly_above(blend, base) and blend_fp.k <= base_fp.k)
-        out["beats"][cell_key] = row
+            config = cell_key.split("/")[0]
+            us = detectors[subject]["recall"]
+            us_fp = cells[f"{config}/humans"][subject]["fpr"]
+            row = {}
+            for name in baselines:
+                if name not in detectors:
+                    continue
+                base = detectors[name]["recall"]
+                base_fp = cells[f"{config}/humans"][name]["fpr"]
+                row[name] = bool(clearly_above(us, base) and us_fp.k <= base_fp.k)
+            out[key][cell_key] = row
     return out
 
 

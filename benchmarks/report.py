@@ -101,19 +101,27 @@ def _ladder_section(scored: dict) -> tuple[str, dict]:
                       + f" | {_pct(hfpr)} |")
         md.append("")
 
-    # beats table
-    md.append("### Does microguard (blend) beat each baseline? (rule 2)\n")
-    md.append("A ✓ means the blend's recall interval clears the baseline's with no "
-              "extra human FPs, at that level.\n")
-    beats = scored.get("beats", {})
-    beat_levels = [lvl for lvl in LADDER_ORDER if f"{configs[0]}/{lvl}" in beats] if configs else []
-    if beat_levels:
+    # beats tables — the shipped blend, and the rule labeler
+    for key, subject, note in (
+        ("beats", "microguard (blend)",
+         ("the pre-registered test (rule 2): the shipped blend's recall interval "
+          "clears the baseline's, with no extra human FPs")),
+        ("beats_heuristic", "microguard (rules)",
+         "the same test for the rule labeler alone — the stronger claim"),
+    ):
+        table = scored.get(key, {})
+        beat_levels = ([lvl for lvl in LADDER_ORDER if f"{configs[0]}/{lvl}" in table]
+                       if configs else [])
+        if not beat_levels:
+            continue
+        md.append(f"### Does {subject} beat each baseline?\n")
+        md.append(f"A ✓ is {note}, at that level.\n")
         md.append("| baseline | " + " | ".join(beat_levels) + " |")
         md.append("|" + "---|" * (len(beat_levels) + 1))
         for base in ("ua_regex", "rate_limit", "path_blocklist", "crowdsec", "mg_scan"):
             marks = []
             for lvl in beat_levels:
-                row = beats.get(f"{configs[0]}/{lvl}", {})
+                row = table.get(f"{configs[0]}/{lvl}", {})
                 marks.append("✓" if row.get(base) else "·")
             md.append(f"| {LABELS.get(base, base)} | " + " | ".join(marks) + " |")
         md.append("")
