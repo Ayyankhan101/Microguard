@@ -218,12 +218,28 @@ def _model_section(track: dict) -> str:
     return "\n".join(md)
 
 
+def _zanbil_human_request_stats() -> dict | None:
+    """Median requests per human-proxy session, from the label files.
+
+    The whole B1d finding rests on real shoppers being high-volume, so the
+    driver is quoted from the data rather than asserted.
+    """
+    labels_dir = RESULTS.parent / "data" / "zanbil" / "labels"
+    if not labels_dir.exists():
+        return None
+    counts = []
+    for f in labels_dir.glob("2019-*.json"):
+        for info in json.loads(f.read_text(encoding="utf-8")).values():
+            if info["label"] == "human_proxy":
+                counts.append(info["requests"])
+    if not counts:
+        return None
+    counts.sort()
+    return {"actors": len(counts), "median": counts[len(counts) // 2],
+            "p90": counts[int(len(counts) * 0.9)], "max": counts[-1]}
+
+
 def _zanbil_section(z: dict) -> str:
-    md = ["## Suite B1 — Zanbil, real e-commerce traffic\n",
-          ("Real nginx logs (Kaggle mirror of doi:10.7910/DVN/3QBYB5, CC0). Labels "
-           "come only from evidence the detectors do not read; verified crawlers are "
-           "confirmed against Google/Bing published ranges. Per day, pooled.\n")]
-    # pool counts across days per test/detector
     pooled: dict = {}
     for tests in z.values():
         for test, payload in tests.items():
@@ -235,28 +251,67 @@ def _zanbil_section(z: dict) -> str:
                 hums = dd.get("humans_flagged", {})
                 slot["bk"] += bots.get("k", 0); slot["bn"] += bots.get("n", 0)
                 slot["hk"] += hums.get("k", 0); slot["hn"] += hums.get("n", 0)
+
+    def rate(test, det, human=False):
+        s = pooled.get(test, {}).get(det)
+        if not s:
+            return None
+        k, n = (s["hk"], s["hn"]) if human else (s["bk"], s["bn"])
+        return {"k": k, "n": n, "value": k / n if n else None, "ci_low": 0, "ci_high": 0}
+
+    md = ["## Suite B1 — Zanbil, real e-commerce traffic\n",
+          ("Real nginx logs from an Iranian shopping site (Kaggle mirror of "
+           "doi:10.7910/DVN/3QBYB5, CC0; ~10.3M lines over five days). Labels come "
+           "only from evidence the detectors do not read: verified crawlers are "
+           "confirmed against Google/Bing published IP ranges, human-proxy actors "
+           "are browser sessions that reached checkout and loaded assets. Counts "
+           "pooled across the five days.\n"),
+          "**Two findings, opposite directions.**\n"]
+
+    stats = _zanbil_human_request_stats()
+    b1b_scan = rate("B1b_crawlers_ua_stripped", "mg_scan")
+    b1b_ua = rate("B1b_crawlers_ua_stripped", "ua_regex")
+    b1d_scan = rate("B1d_humans_as_is", "mg_scan", human=True)
+    b1d_ua = rate("B1d_humans_as_is", "ua_regex", human=True)
+    if b1b_scan and b1b_ua:
+        md.append(
+            f"1. **Behaviour beats a UA blocklist on disguised crawlers.** With every "
+            f"crawler's User-Agent rewritten to Chrome, `microguard scan` still catches "
+            f"{_pct(b1b_scan)} of them by behaviour alone, where a UA blocklist catches "
+            f"{_pct(b1b_ua)} — it has nothing left to match.\n")
+    if b1d_scan and b1d_ua:
+        driver = ""
+        if stats:
+            driver = (f" Real shoppers on an image-heavy store make a median of "
+                      f"{stats['median']} requests per session (p90 {stats['p90']}, "
+                      f"max {stats['max']:,}), and the `> 100 requests` rule reads that "
+                      f"as a scraper.")
+        md.append(
+            f"2. **But `scan` over-flags real humans badly.** At its default threshold it "
+            f"flags {_pct(b1d_scan)} of real human shoppers as bots, against {_pct(b1d_ua)} "
+            f"for a UA blocklist.{driver} This is the false-positive rate the scripted lab "
+            f"(Suite A) could not show, because those humans made a handful of requests "
+            f"with no embedded assets. The live blocker at its stricter 0.85 threshold "
+            f"spares most of them (the count rule sits at 0.85, and the block test is "
+            f"strict `>`), but `scan` as an audit tool is unsafe on this traffic as-is.\n")
+
     titles = {
         "B1a_verified_as_is": "B1a — verified crawlers, logs as-is (bots caught)",
-        "B1b_crawlers_ua_stripped": "B1b — crawlers with UA rewritten to Chrome (bots caught)",
+        "B1b_crawlers_ua_stripped": "B1b — crawlers, UA rewritten to Chrome (bots caught by behaviour)",
         "B1c_probe_bots_probes_removed": "B1c — probe bots, probe requests removed (bots caught)",
-        "B1d_humans_as_is": "B1d — human-proxy actors flagged (this is FP rate)",
+        "B1d_humans_as_is": "B1d — real human shoppers flagged (this is the FP rate)",
     }
     for test, title in titles.items():
         if test not in pooled:
             continue
+        human = test == "B1d_humans_as_is"
         md.append(f"### {title}\n")
         md.append("| detector | flagged |")
         md.append("|---|---|")
-        key = "hk" if test == "B1d_humans_as_is" else "bk"
-        nkey = "hn" if test == "B1d_humans_as_is" else "bn"
         for det in ("ua_regex", "rate_limit", "path_blocklist", "mg_scan"):
-            if det not in pooled[test]:
-                continue
-            s = pooled[test][det]
-            rate = {"k": s[key], "n": s[nkey],
-                    "value": s[key] / s[nkey] if s[nkey] else None,
-                    "ci_low": 0, "ci_high": 0}
-            md.append(f"| {LABELS.get(det, det)} | {_pct(rate)} |")
+            r = rate(test, det, human=human)
+            if r:
+                md.append(f"| {LABELS.get(det, det)} | {_pct(r)} |")
         md.append("")
     return "\n".join(md)
 
