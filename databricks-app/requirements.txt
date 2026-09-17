@@ -1,5 +1,0 @@
-# microguard is not published to PyPI, so the previous `microguard>=0.2.0`
-# line could never resolve (and pinned a version four majors behind the repo).
-# The bundle uploads the repo, so install the source that ships beside it.
-../[mlflow,fastapi,live,dashboard]
-uvicorn[standard]>=0.29

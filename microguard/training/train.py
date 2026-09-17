@@ -19,7 +19,6 @@ from microguard.features import extract_features, group_into_sessions
 from microguard.labeler import label_session
 from microguard.model import BotDetector
 from microguard.parser import LogEntry, parse_file
-from microguard.tracking import MODEL_NAME
 from microguard.training.generate import generate_stealthy_bot_session
 
 
@@ -446,7 +445,7 @@ def default_data_dir() -> str:
     return os.path.join(os.path.dirname(os.path.dirname(here)), 'data')
 
 
-def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 0.05, mlflow_enabled: bool = True):
+def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 0.05):
     """Main training entry point.
 
     Args:
@@ -457,7 +456,6 @@ def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 
             shipped model.json, normalization.json and both eval sets.
         epochs: Training epochs. Lower it for a smoke run.
         learning_rate: SGD learning rate.
-        mlflow_enabled: Log to MLflow if available (default: True).
     """
     # Not exercised in tests on purpose: taking this branch means training
     # against the real data/ and overwriting the shipped model. The resolution
@@ -527,80 +525,18 @@ def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 
     # Train model
     model_path = os.path.join(data_dir, 'model.json')
 
-    # Attempt MLflow logging if enabled
-    use_mlflow = False
-    if mlflow_enabled:
-        try:
-            from ..tracking import (
-                init,
-                log_artifact,
-                log_metrics,
-                log_params,
-                register_model,
-                start_run,
-            )
-            init()
-            use_mlflow = True
-        except ImportError:
-            print("⚠️  MLflow not installed — running without experiment tracking")
-        except Exception as e:  # noqa: BLE001 — tracking never decides whether training runs
-            from microguard.tracking import resolved_tracking_uri
-            print(
-                f"⚠️  MLflow init failed (tracking URI: {resolved_tracking_uri()}): "
-                f"{e} — running without experiment tracking"
-            )
+    model, _ = train_model(
+        features=features,
+        labels=labels,
+        model_path=model_path,
+        epochs=epochs,
+        learning_rate=learning_rate,
+        group_ids=group_ids,
+        provenance=provenance,
+    )
 
-    if use_mlflow:
-        with start_run(run_name=f"train-{data_source}") as run:
-            log_params({
-                "epochs": epochs,
-                "learning_rate": learning_rate,
-                "batch_size": min(32, len(features)),
-                "data_source": data_source,
-                "n_samples": len(features),
-                "n_bot": sum(labels),
-                "n_human": len(labels) - sum(labels),
-            })
-
-            model, metrics = train_model(
-                features=features,
-                labels=labels,
-                model_path=model_path,
-                epochs=epochs,
-                learning_rate=learning_rate,
-                group_ids=group_ids,
-                provenance=provenance,
-            )
-
-            # Log numeric metrics (exclude _artifacts key)
-            artifact_paths = metrics.pop("_artifacts", {})
-            log_metrics(metrics)
-
-            # Log artifacts
-            for name, path in artifact_paths.items():
-                if path and os.path.exists(path):
-                    if name in ("model", "normalization"):
-                        # Log model.json and normalization.json together
-                        log_artifact(path, artifact_path="model")
-                    else:
-                        log_artifact(path)
-
-            # Register model to Registry (Staging)
-            register_model(run.info.run_id, artifact_path="model")
-            print(f"\n📊 Logged to MLflow run: {run.info.run_id}")
-            print(f"   Model registered as: {MODEL_NAME}")
-    else:
-        model, metrics = train_model(
-            features=features,
-            labels=labels,
-            model_path=model_path,
-            epochs=epochs,
-            learning_rate=learning_rate,
-            group_ids=group_ids,
-            provenance=provenance,
-        )
-    
     print("\n✅ Training complete!")
+    print(f"   Dataset: {data_source}")
     print(f"   Model: {model}")
     print("   Ready to use: microguard scan <logfile>")
 

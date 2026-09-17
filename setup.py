@@ -40,7 +40,6 @@ setup(
             "sse-starlette>=2.1",
         ],
         "flask": ["flask>=3.0"],
-        "mlflow": ["mlflow>=2.10,<3"],
     },
     entry_points={
         "console_scripts": [

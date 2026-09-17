@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException
 
 from .. import __version__
 from ..events import DecisionRecorder, InMemoryDecisionRecorder
-from . import api_health, api_live, api_mlflow, api_model, api_scan
+from . import api_health, api_live, api_model, api_scan
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,6 @@ def create_app(
     app.include_router(api_scan.router)
     app.include_router(api_model.router)
     app.include_router(api_live.router)
-    app.include_router(api_mlflow.router)
 
     if static_dir and os.path.isdir(static_dir):
         _mount_spa(app, static_dir)

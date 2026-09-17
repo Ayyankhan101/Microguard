@@ -41,7 +41,7 @@ python gui/scripts/capture_fixtures.py   # Recapture API fixtures after a shape 
 ## Health Stack
 
 - typecheck: mypy microguard (CI gates it in the `typecheck (mypy)` job, on
-  Python 3.10 without the mlflow extra)
+  Python 3.10)
 - lint: ruff check .
 - test: pytest
 - coverage: pytest --cov=microguard --cov-report=term-missing (99.31%; CI
@@ -95,13 +95,15 @@ Redis and a stable clock. Run these on a **clean tree** before pushing:
   ```
 
   The matrix installs `.[live,fastapi,flask,dashboard]` plus
-  `pytest pytest-cov httpx httpx2` — **not** the `mlflow` extra, and therefore
-  not numpy or pandas either. A test that imports one of those passes on any
-  dev machine that has it for unrelated reasons and fails all 12 matrix jobs.
-  That is exactly how `tests/test_tracking.py::TestPyFunc::test_predict`
-  shipped: `import numpy as np`, green locally, `ModuleNotFoundError` on every
-  runner. Guard such tests with `pytest.importorskip`, and add any newly
-  optional dependency to the blocked list above.
+  `pytest pytest-cov httpx httpx2` — nothing more. No package code imports
+  numpy, pandas, or mlflow any more (the Databricks/MLflow surface was removed),
+  so these two blocks are kept as a standing guard, not because a current
+  dependency needs them: a test that imports a package outside the matrix
+  install passes on a dev machine that happens to have it and fails all 12
+  matrix jobs. That is how `tests/test_tracking.py::TestPyFunc::test_predict`
+  once shipped (`import numpy as np`, green locally, `ModuleNotFoundError` on
+  every runner). Guard any such test with `pytest.importorskip`, and add any
+  newly optional dependency to the blocked list above.
 
 ### Platform parity — a review check, not a lane
 
