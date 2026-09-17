@@ -4,8 +4,13 @@
 
 Detect malicious bot traffic in your API logs and live endpoints. Zero external dependencies beyond micrograd.
 
-> **Beta:** trained on real ground-truth attack data (not synthetic), but not
-> yet adversarially tested. See [Known Limitations](#known-limitations-read-before-relying-on-this-for-production-blocking)
+> **Beta:** trained on real ground-truth attack data (not synthetic) and now
+> [benchmarked](docs/results/2026-09-benchmark.md) against baselines on bots at
+> rising evasion levels and on real public logs. The rules beat every baseline
+> with zero human false positives — but the results also pin down where it
+> breaks (the shipped blend threshold, and a high false-positive rate for the
+> offline `scan` on real e-commerce traffic). Read the [Benchmarks](#benchmarks)
+> summary and [Known Limitations](#known-limitations-read-before-relying-on-this-for-production-blocking)
 > before using this as a production blocking gate.
 
 ```
@@ -43,6 +48,60 @@ $ microguard scan access.log
 - **Auto-generated firewall rules** — nginx deny-list or Cloudflare Firewall Rule expression for DANGER-scored IPs
 - **Score interpretation** — SAFE / LOW / WARNING / DANGER risk labels
 - **Zero external dependencies** — only requires micrograd (the WebSocket probe hand-rolls the RFC 6455 handshake over stdlib `socket`/`ssl` rather than pulling in a client library)
+
+## Benchmarks
+
+Microguard is measured against the alternatives an operator would actually
+deploy — a User-Agent blocklist, a rate limit, a path blocklist, and
+[CrowdSec](https://crowdsec.net) — on the **same bots at rising levels of
+evasion** (`L0` announces itself; `L5-farm` is a real headless-Chromium bot
+pacing like a human across ten IPs), plus two real public logs. Every grading
+rule was fixed **before any run** in
+[`benchmarks/PREREGISTRATION.md`](benchmarks/PREREGISTRATION.md); the full
+methodology, tables with confidence intervals, and the pre-registration grading
+are in [**the benchmark report**](docs/results/2026-09-benchmark.md).
+
+**The evasion ladder** — recall (bots caught) by evasion level, default config,
+pooled over 5 seeds, exact ground truth:
+
+| detector | L0 | L1 | L2 | L3 | L4 | L5 | L5-farm | human FP |
+|---|---|---|---|---|---|---|---|---|
+| UA blocklist | 89% | 0% | 0% | 0% | 0% | 0% | 0% | 0/175 |
+| rate limit | 11% | 11% | 11% | 0% | 0% | 0% | 0% | 0/175 |
+| CrowdSec | 18% | 20% | 20% | 30% | 48% | 40% | 0% | 0/175 |
+| **microguard (rules)** | **100%** | **100%** | **100%** | **100%** | **75%** | **100%** | **0%** | **0/175** |
+| microguard (blend, shipped) | 100% | 44% | 44% | 33% | 25% | 33% | 0% | 0/175 |
+
+![Evasion ladder](docs/results/figures/ladder-default.svg)
+
+What the numbers say, honestly:
+
+- **The rules beat every baseline.** The moment a bot spoofs a browser
+  User-Agent, a UA blocklist drops to 0% and a rate limit to ~11%, while
+  microguard's rules hold 100% recall through L5 (75% at L4) at **zero human
+  false positives**.
+- **The shipped 0.85 blend leaves recall on the table.** Its floor/cap means
+  only high-confidence (0.90+) rules clear the bar, so the blend catches 44%
+  at L1 where the rules catch 100%. If you run microguard, trust the rule
+  labeler or lower the threshold.
+- **The distributed browser farm is the blind spot.** Volume and path
+  heuristics catch 0% of a low-and-slow farm sharing one browser profile across
+  ten IPs. Promoting the fingerprint signal recovers 22% — but at a 6% human
+  false-positive cost (it flags clients that don't run JavaScript), so it is not
+  yet safe to block on. A micrograd model *retrained* on the live distribution
+  recovers the whole farm with zero added false positives (on cleanly-separable
+  simulated humans — an upper bound, see below).
+- **On real e-commerce traffic** (Zanbil, 10.3M real nginx lines): behaviour
+  alone catches **31%** of crawlers whose UA is disguised as Chrome (a UA
+  blocklist catches 0%) — but `microguard scan` flags **57% of real human
+  shoppers** as bots, because real sessions make 100+ requests on image-heavy
+  pages and trip the volume rules. This false-positive rate is the one the
+  synthetic lab could not show.
+
+**Honest limits:** the lab's humans are simulated (real headless browsers, but
+scripted intent); only the Zanbil human labels are real, and they are proxies.
+The live check server also ignores the forwarded `Referer`, so referer rules are
+inert on the live path. The benchmark report spells all of this out.
 
 ## Installation
 
@@ -667,12 +726,17 @@ GitHub Actions workflow runs on every push and PR:
 This is a v2.0 beta: the architecture is real and the detection is trained
 on real data, but it has not been adversarially tested. Specifically:
 
-- **No evidence against sophisticated bots.** All real bot/attack traffic in
-  training and eval (`data/zenodo_data/organization-x/`) is fairly overt —
-  monitoring bots, scanners, forensic attack patterns. `tests/.../TestAdversarialRobustness`
-  and `data/adversarial_eval.json` measure recall against a synthetic
-  browser-mimicking bot, but treat that number with real skepticism (see
-  next point) — it is not proof the model catches real evasive bots.
+- **Sophisticated bots: now measured, with mixed results.** The
+  [evasion-ladder benchmark](docs/results/2026-09-benchmark.md) drives the same
+  bots at rising evasion levels up to a real headless-Chromium farm. The rule
+  labeler holds 100% recall through browser-UA-spoofing and human pacing (L1–L3)
+  and 75–100% against a real browser (L4–L5) at zero human false positives — but
+  the **distributed browser farm** (one profile across ten IPs, low volume each)
+  evades the rules entirely (0%), and the **shipped 0.85 blend** catches far less
+  than the rules alone. So there is now real evidence: microguard's rules are
+  strong against evasive-but-noisy bots and blind to the low-and-slow distributed
+  case. The old synthetic `data/adversarial_eval.json` number is superseded by
+  this; treat the ladder as the reference.
 - **The real-human baseline has low feature diversity.** Of the 19 model
   features, only 9 (timing + request-count based) vary across
   `data/harvard_training_data.json`'s "real" human rows; the other 10
