@@ -163,13 +163,17 @@ def _ladder_section(scored: dict) -> tuple[str, dict]:
     spread = scored.get("model_spread", {})
     md.append("### The shipped model on the live path\n")
     for config, s in spread.items():
-        md.append(f"- **{config}**: median live model score "
-                  f"{s['median_of_medians']:.3f}, max IQR across seeds "
-                  f"{s['max_iqr']:.3f} — "
-                  f"{'near-constant' if s['near_constant'] else 'varying'}. "
-                  f"The model contributes almost no separation on the live path "
-                  f"(the 0.731 in the docs is the offline/holdout constant; the "
-                  f"per-request path collapses to a different band).")
+        auc = s.get("mean_actor_auc")
+        auc_txt = f"{auc:.2f}" if auc is not None else "—"
+        md.append(
+            f"- **{config}**: the live per-request model score sits in a narrow band "
+            f"(median {s['median_of_medians']:.2f}, IQR {s['max_iqr']:.2f}) — not the "
+            f"0.731 the docs quote, which is the offline/holdout constant. Within that "
+            f"band it still ranks bots above humans, actor-level AUC {auc_txt}. But every "
+            f"score is above 0.5 and below ~0.7, so the model as a standalone 0.5-threshold "
+            f"detector flags almost everyone, and inside the blend it never clears the 0.85 "
+            f"block bar on its own. The ranking signal is real; the fixed thresholds do not "
+            f"exploit it. Suite D asks whether a model retrained on this distribution does.")
     md.append("")
     return "\n".join(md), figures
 
@@ -437,11 +441,14 @@ comes from the rules under test.
 
 DEVIATIONS = """## Deviations from the pre-registration
 
-1. **Anchor 3 named 0.731 for the live model.** That is the offline/holdout
-   constant; the live per-request path collapses to a different near-constant
-   (train/serve skew, issue #19). The operative check became "near-constant"
-   (max IQR < 0.05 across seeds), which is the claim the anchor was standing in
-   for. The measured live band is reported in Suite A.
+1. **Anchor 3 (and prediction P9) named 0.731 and "near-constant" for the live
+   model.** 0.731 is the offline/holdout constant; the live per-request path
+   sits in a different, narrow band (train/serve skew, issue #19). The measured
+   live spread is wider than the 0.05-IQR bar the anchor used, and — the part
+   neither the anchor nor P9 anticipated — the model still ranks bots above
+   humans within that band (AUC in Suite A). So the shipped model is not the
+   inert constant the pre-registration assumed; P9 is graded a miss on purpose,
+   and Suite D takes up the real question of whether a retrained model helps.
 2. **CrowdSec sees a public-IP rewrite of the lab logs.** CrowdSec whitelists
    private ranges by default, and the lab actors live in 10.66/10.99. Each lab
    IP is mapped 1:1 to a public one for the CrowdSec replay only, and back

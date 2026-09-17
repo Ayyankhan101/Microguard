@@ -17,6 +17,7 @@ from pathlib import Path
 
 from benchmarks.detectors import (
     Actor,
+    Verdict,
     load_actors,
     mg_blend,
     mg_heuristic,
@@ -27,7 +28,7 @@ from benchmarks.detectors import (
     scan_verdicts,
     ua_regex,
 )
-from benchmarks.metrics import DetectionDelay, Rate, clearly_above
+from benchmarks.metrics import DetectionDelay, Rate, clearly_above, roc_auc
 from benchmarks.public.crowdsec import crowdsec_flagged_ips
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -97,6 +98,18 @@ def score() -> dict:
             seed = json.loads(meta.read_text(encoding="utf-8"))["seed"]
             actors, truth = _load_cell(seed_dir)
             spread = _model_constancy(actors)
+            # The question the spread only hints at: does the live model score
+            # bots above humans at all? Actor = max model score over its
+            # requests; 0.5 means no separation.
+            scored_actors = [
+                (max((d.model_score for d in a.decisions), default=None),
+                 truth[ip]["class"] == "bot")
+                for ip, a in actors.items() if a.decisions
+            ]
+            scored_actors = [(s, lbl) for s, lbl in scored_actors if s is not None]
+            if scored_actors:
+                spread["actor_auc"] = roc_auc([s for s, _ in scored_actors],
+                                              [lbl for _, lbl in scored_actors])
             model_spread[config].append(spread)
 
             # Offline scan: real `microguard scan` over this seed's access log,
@@ -106,9 +119,7 @@ def score() -> dict:
             detectors = dict(LIVE_DETECTORS)
             detectors["mg_scan"] = offline_scan(scan)
             if crowd is not None:
-                detectors["crowdsec"] = offline_scan(
-                    {ip: type("V", (), {"flagged": True})() for ip in crowd}
-                )
+                detectors["crowdsec"] = offline_scan({ip: Verdict(True) for ip in crowd})
 
             # Bots grouped by level; humans pooled (level == "human").
             by_level: dict[str, list[str]] = defaultdict(list)
@@ -155,10 +166,12 @@ def _render(cells, seeds_seen, per_seed_recall, model_spread) -> dict:
     for config, spreads in model_spread.items():
         medians = [s["median"] for s in spreads if s.get("n")]
         iqrs = [s["iqr"] for s in spreads if s.get("n")]
+        aucs = [s["actor_auc"] for s in spreads if s.get("actor_auc") is not None]
         out["model_spread"][config] = {
             "median_of_medians": statistics.median(medians) if medians else None,
             "max_iqr": max(iqrs) if iqrs else None,
             "near_constant": (max(iqrs) < 0.05) if iqrs else None,
+            "mean_actor_auc": statistics.mean(aucs) if aucs else None,
         }
     for cell_key, detectors in cells.items():
         rendered = {}
