@@ -36,3 +36,8 @@ scripts/lab/.run/
 # benchmark downloads (public datasets, large) and raw per-run output
 benchmarks/data/
 benchmarks/results/
+
+# real-human collection session: runtime dir + archives with visitor IPs
+scripts/collect/.run/
+data/session.jsonl
+data/session-access.log
