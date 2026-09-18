@@ -135,8 +135,15 @@ API_ROUTE_RE = re.compile(
     r"^/[A-Za-z0-9_.]+\.[A-Za-z0-9_]+/[A-Za-z0-9_]+$",
     re.IGNORECASE,
 )
+# Embedded subresources a browser fetches per page — matched by extension AND by
+# common asset path prefixes, because many sites serve images without a file
+# extension (e.g. Zanbil's `/image/60844/productModel/200x200`). Counting these
+# as "requests" is what made the volume rules read a real shopper as a scraper.
 STATIC_ASSET_RE = re.compile(
-    r"\.(?:js|css|png|jpe?g|gif|svg|ico|woff2?|ttf|map|webp|avif|mp4|json|xml|txt)$",
+    r"(?:^|/)(?:images?|img|static|assets?|media|thumbnails?|thumbs?|icons?|"
+    r"css|js|fonts?|avatars?|uploads?|cdn|sprites?)(?:/|$)"
+    r"|\.(?:js|css|png|jpe?g|gif|svg|ico|woff2?|ttf|map|webp|avif|mp4|json|xml|txt)$"
+    r"|/favicon\.ico$",
     re.IGNORECASE,
 )
 
@@ -361,6 +368,15 @@ def label_session(
     ua = session.user_agent.lower()
     urls = [e.url.split('?')[0] for e in entries]
 
+    # Requests that are not embedded static assets. The volume rules below
+    # count these, not the raw request total: a real browser loading one rich
+    # page fires dozens of image/CSS/JS subrequests, so raw count reads a
+    # normal visitor as a high-volume scraper. Measured on real e-commerce
+    # traffic (Zanbil), the raw-count rule flagged 57% of genuine human
+    # shoppers. A page/endpoint scraper still hits many non-assets and is still
+    # caught. See docs/results/2026-09-benchmark.md.
+    page_like_count = sum(1 for u in urls if not STATIC_ASSET_RE.search(u))
+
     # === KNOWN AUTOMATED INTEGRATIONS (not a threat signal) ===
 
     # 0. Recognized webhook/integration sender — automated by definition,
@@ -434,9 +450,9 @@ def label_session(
 
     # === MEDIUM CONFIDENCE BOT SIGNALS (0.70-0.89) ===
     
-    # 5. Very high request rate (>100 requests in session)
-    if session.request_count > 100:
-        return 'bot', 0.85, f'extremely high request count: {session.request_count}'
+    # 5. Very high request rate (>100 non-asset requests in session)
+    if page_like_count > 100:
+        return 'bot', 0.85, f'extremely high request count: {page_like_count} pages'
     
     # 6. All requests to same endpoint (scraper pattern) — not for
     # single-endpoint APIs (GraphQL/SOAP/RPC), where this is normal.
@@ -452,10 +468,12 @@ def label_session(
     # minute and blocks a real visitor. Batch scans never hit this because
     # nginx log timestamps are second-granular (duration == 0, rule skipped),
     # but the live path uses time.time() and trips it on every page load.
-    if session.duration >= MIN_RATE_WINDOW_S and session.request_count >= MIN_RATE_REQUESTS:
-        rate = session.request_count / (session.duration / 60.0)
+    # Rate over non-asset requests: a browser firing image subrequests is not
+    # a high request rate in the sense this rule means.
+    if session.duration >= MIN_RATE_WINDOW_S and page_like_count >= MIN_RATE_REQUESTS:
+        rate = page_like_count / (session.duration / 60.0)
         if rate > 50:
-            return 'bot', 0.75, f'high request rate: {rate:.1f} req/min'
+            return 'bot', 0.75, f'high request rate: {rate:.1f} pages/min'
     
     # 8. No referrer on all requests (direct API hits)
     no_referrer = sum(1 for e in entries if e.referer in ('-', '', 'none'))
@@ -487,9 +505,9 @@ def label_session(
     if ua and ua != '-' and not BROWSER_UA_RE.search(ua) and session.request_count > 5:
         return 'bot', 0.60, f'unknown user-agent: {session.user_agent[:50]}'
     
-    # 12. Very short session with many requests (< 5 seconds, > 20 requests)
-    if session.duration < 5.0 and session.request_count > 20:
-        return 'bot', 0.65, f'{session.request_count} requests in {session.duration:.1f}s'
+    # 12. Very short session with many non-asset requests (< 5 seconds, > 20)
+    if session.duration < 5.0 and page_like_count > 20:
+        return 'bot', 0.65, f'{page_like_count} pages in {session.duration:.1f}s'
     
     # 13. Night-time activity (2am-6am) with high volume
     night_count = sum(1 for e in entries if 2 <= e.timestamp.hour < 6)
