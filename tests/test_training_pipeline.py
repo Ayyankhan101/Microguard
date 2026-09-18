@@ -422,6 +422,24 @@ class TestMainDispatch:
         labels = [1.0 if i % 2 else 0.0 for i in range(n)]
         return features, labels
 
+    def test_prefers_the_realistic_dataset(self, tmp_path, capsys):
+        from microguard.training.train import main
+
+        features, labels = self._rows()
+        # Realistic outranks even real_bot; both present, realistic wins.
+        self._write(tmp_path / "realistic_training_data.json", features, labels,
+                    group_ids=[f"g{i}" for i in range(len(labels))],
+                    provenance=['zanbil_human_proxy_2019-01-22' if lbl <= 0.5
+                                else 'zanbil_verified_crawler_2019-01-22'
+                                for lbl in labels],
+                    source_counts={'zanbil_human_proxy_2019-01-22': labels.count(0.0)})
+        self._write(tmp_path / "real_bot_training_data.json", features, labels)
+
+        main(data_dir=str(tmp_path), epochs=2)
+
+        assert 'realistic training data' in capsys.readouterr().out
+        assert (tmp_path / "model.json").exists()
+
     def test_prefers_the_real_bot_dataset(self, tmp_path, capsys):
         from microguard.training.train import main
 
@@ -775,6 +793,8 @@ class TestBuildRealisticDataset:
 
     @pytest.fixture
     def sandboxed(self, tmp_path, monkeypatch):
+        import datetime as _dt
+
         from microguard.parser import LogEntry as LE
         from microguard.training import build_realistic_dataset as bru
 
@@ -785,28 +805,60 @@ class TestBuildRealisticDataset:
         browser = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                    "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")
         lines = []
-        # A human_proxy actor (browser UA) and a crawler bot actor, 5 requests each.
+        # A human_proxy actor and a crawler bot actor, 5 requests each.
         for i in range(5):
             lines.append(self._zanbil_line("5.1.1.1", f"/product/{i}", i, browser,
                                            referer="https://shop/"))
             lines.append(self._zanbil_line("66.249.66.1", f"/catalog/{i}", i,
                                            "Mozilla/5.0 (compatible; Googlebot/2.1)"))
+        # A human actor whose requests span >MAX_SESSIONS_PER_ACTOR sessions
+        # (each >30 min apart), so the per-actor session cap (rng.sample) fires.
+        for sess in range(7):
+            minute = sess * 40  # >30 min gap -> a new session each time
+            for r in range(3):
+                lines.append(
+                    f'5.1.1.9 - - [22/Jan/2019:{3 + minute // 60:02d}:'
+                    f'{minute % 60:02d}:{r:02d} +0330] "GET /p/{sess}/{r} HTTP/1.1" '
+                    f'200 100 "https://shop/" "{browser}"'
+                )
         (days / "2019-01-22.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
         (labels / "2019-01-22.json").write_text(json.dumps({
             "5.1.1.1": {"label": "human_proxy", "requests": 5},
+            "5.1.1.9": {"label": "human_proxy", "requests": 21},
             "66.249.66.1": {"label": "verified_crawler", "requests": 5},
             "9.9.9.9": {"label": "unlabeled", "requests": 1},
         }), encoding="utf-8")
+        # A day with only unlabeled actors -> keep is empty -> that day is skipped.
+        (days / "2019-01-21.log").write_text(
+            self._zanbil_line("9.9.9.9", "/", 0, browser) + "\n", encoding="utf-8")
+        (labels / "2019-01-21.json").write_text(
+            json.dumps({"9.9.9.9": {"label": "unlabeled", "requests": 1}}), encoding="utf-8")
 
-        # org-x: a couple of real-shaped attack entries, via the stubbed reader.
+        base = _dt.datetime(2020, 3, 4, 12, 0, 0, tzinfo=_dt.timezone.utc)
+
+        def _orgx(ip, url, sec, ua, status=404, referer="-"):
+            ts = base + _dt.timedelta(seconds=sec)
+            raw = (f'{ip} - - [{ts:%d/%b/%Y:%H:%M:%S} +0000] '
+                   f'"GET {url} HTTP/1.1" {status} 0 "{referer}" "{ua}"')
+            return LE(ip=ip, timestamp=ts, method="GET", url=url, status=status,
+                      size=0, referer=referer, user_agent=ua, raw_line=raw)
+
         def fake_orgx_entries():
-            return [
-                LE(ip="1.2.3.4", timestamp=__import__("datetime").datetime(
-                    2020, 3, 4, 12, 0, i, tzinfo=__import__("datetime").timezone.utc),
-                   method="GET", url=f"/scan/{i}", status=404, size=0,
-                   referer="-", user_agent="Go-http-client/1.1")
-                for i in range(5)
-            ]
+            out = []
+            # ground-truth bot: raw_line carries "Go-http-client" so the rule matches
+            out += [_orgx("1.2.3.4", f"/scan/{i}", i, "Go-http-client/1.1") for i in range(4)]
+            # heuristic-only bot: a known-bot UA the rule does not name
+            out += [_orgx("1.2.3.5", f"/x/{i}", i, "python-requests/2.28.0") for i in range(4)]
+            # a human-looking session the heuristic drops (not trusted as human):
+            # browser UA, referers, unhurried and IRREGULAR pace -> labeled human
+            for sec, i in zip((0, 33, 91, 140, 205, 266), range(6)):
+                out.append(_orgx("1.2.3.6", f"/page/{i}", sec, browser, status=200,
+                                 referer="https://site/"))
+            # a too-short session (< MIN_REQUESTS), skipped
+            out += [_orgx("1.2.3.7", "/a", 0, "curl/8.0"),
+                    _orgx("1.2.3.7", "/b", 1, "curl/8.0")]
+            return out
+
         rules_path = tmp_path / "rules.yaml"
         rules_path.write_text(
             '- id: dir_scan\n  ground_truth_label: dir_scan_go\n  sensitivity: moderate\n'
@@ -840,6 +892,23 @@ class TestBuildRealisticDataset:
         without = bru.build_dataset(include_orgx=False)
         assert with_orgx['n_bot'] > without['n_bot']
         assert any('orgx' in p for p in with_orgx['provenance'])
+
+    def test_orgx_covers_ground_truth_heuristic_and_dropped_paths(self, sandboxed):
+        bru, _tmp = sandboxed
+        data = bru.build_dataset(include_orgx=True)
+        srcs = set(data['provenance'])
+        # ground-truth (rule matched via raw_line) and heuristic-only both appear;
+        # the human-looking and too-short org-x sessions are dropped, not included.
+        assert any(p.startswith('orgx_ground_truth') for p in srcs)
+        assert 'orgx_heuristic' in srcs
+
+    def test_per_actor_session_cap_is_applied(self, sandboxed):
+        bru, _tmp = sandboxed
+        data = bru.build_dataset(include_orgx=False)
+        # The 5.1.1.9 actor sent 7 sessions; the cap keeps at most 5.
+        capped = [g for g in data['group_ids'] if g.startswith('zanbil_2019-01-22_')]
+        from collections import Counter
+        assert max(Counter(capped).values()) <= bru.MAX_SESSIONS_PER_ACTOR
 
     def test_main_writes_the_dataset(self, sandboxed, capsys):
         bru, tmp = sandboxed
