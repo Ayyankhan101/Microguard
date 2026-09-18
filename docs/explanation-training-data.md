@@ -276,9 +276,10 @@ false positives *on the lab's simulated humans*. Read that as an upper bound,
 not a shipping result: those humans are cleanly separable from bots in feature
 space (sklearn logistic regression and random forest hit the same perfect
 score), and on real human traffic that separation does not hold — `microguard
-scan` flags 57% of real Zanbil shoppers. Retraining is a real lead; it is not
-yet a model that is safe to block with. Until observe-only collection produces
-labeled *real* human sessions, that stays true.
+scan` flagged 57% of real Zanbil shoppers as bots at the time of the benchmark
+(since cut to 15% by counting page-like requests, but not to zero). Retraining
+is a real lead; it is not yet a model that is safe to block with. Until
+observe-only collection produces labeled *real* human sessions, that stays true.
 
 ## Rebuilding it
 

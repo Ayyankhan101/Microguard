@@ -67,12 +67,14 @@ Reads request metadata from headers, scores it, and answers 200 (allow) or
 | `X-Original-Method` | HTTP method of the real request | `GET` |
 | `X-Original-URI` | Path of the real request | `/` |
 
-The check server reads **only** these headers. In particular it does not read
-`Referer`: the live `LogEntry` is always built with `referer=""`, so
-referer-based rules and features are inert on the live path (the "no referrer on
-all requests" rule fires on any 20-plus-request session, and the human referer
-rule never fires). Offline `scan` does read the referer from the log line. See
-the [benchmark](results/2026-09-benchmark.md), which measures the effect.
+The check server reads these headers, `Referer` included — so it must be
+forwarded (`proxy_set_header Referer $http_referer;`, see
+[deploy behind nginx](howto-deploy-behind-nginx.md)). The
+[benchmark](results/2026-09-benchmark.md) originally found the server dropping
+the referer (it built the `LogEntry` with `referer=""`), which made the
+referer-based rules inert on the live path; that is now fixed, and the same is
+true for the ASGI and WSGI middleware, which read the referer directly from the
+request.
 
 Responds with the [decision payload](#decision-payload) as a JSON body and as
 `X-Microguard-*` headers.

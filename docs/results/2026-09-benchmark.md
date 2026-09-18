@@ -212,3 +212,27 @@ Trained on 1463 live per-request vectors from seeds [1, 2], levels ['L0', 'L1', 
    IP is mapped 1:1 to a public one for the CrowdSec replay only, and back
    afterwards; microguard scores the real lab IPs. Zanbil's real public IPs are
    untouched.
+
+## Fixes applied since this benchmark
+
+The numbers above were measured **before** the three defects the benchmark
+surfaced were fixed; they are kept as the baseline that motivated the fixes.
+What changed (see the git history on `microguard/live/` and `microguard/labeler.py`):
+
+- **The live path now reads the `Referer`.** The check server and the ASGI/WSGI
+  middleware built every request with `referer=""`; all three now read the real
+  header (the check server via `proxy_set_header Referer $http_referer;`). The
+  "no referrer" rule no longer fires on every long live session, and the human
+  navigation rule can fire live.
+- **The volume rules count page-like requests, not embedded assets.** This cut
+  the `scan` false-positive rate on real Zanbil human shoppers from **57% to
+  15%** (a page/endpoint scraper is still caught; a browser loading rich pages
+  is not).
+- **Credential/API-key brute-force is promoted 0.75 → 0.90**, so the one
+  unambiguous-attack rule the 0.85 blend was discarding now blocks live, with no
+  human-FP risk. A blanket threshold drop was rejected as unsafe: the
+  `>100 requests` rule sits at exactly 0.85 by design, and dropping below it
+  re-introduces the real-human false positives the volume-rule fix removed.
+
+Re-running the full matrix under the fixes would refresh these tables; the
+committed baseline is deliberately the pre-fix state.
