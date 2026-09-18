@@ -256,6 +256,7 @@ microguard serve --port 8400 --redis-url redis://localhost:6379
 #       proxy_set_header X-Original-Method $request_method;
 #       proxy_set_header X-Real-IP $remote_addr;
 #       proxy_set_header User-Agent $http_user_agent;
+#       proxy_set_header Referer $http_referer;
 #       # Drop client-supplied X-Forwarded-For. Sessions are keyed on the
 #       # client IP, so a spoofable value lets a bot get a fresh session
 #       # per request and never build a detectable history.

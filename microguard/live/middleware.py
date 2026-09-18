@@ -90,6 +90,7 @@ class MicroguardASGI:
         client = scope.get("client") or ()
         ip = _extract_ip(headers, self._trust_xff, client[0] if client else "")
         ua = _decode_header(headers.get(b"user-agent", b""))
+        referer = _decode_header(headers.get(b"referer", b""))
         method = scope.get("method", "GET")
         path = scope.get("path", "/")
 
@@ -111,7 +112,7 @@ class MicroguardASGI:
             url=path,
             status=0,
             size=0,
-            referer="",
+            referer=referer,
             user_agent=ua,
         )
 
@@ -240,6 +241,7 @@ class MicroguardWSGI:
         if not ip:
             ip = environ.get("REMOTE_ADDR", "")
         ua = environ.get("HTTP_USER_AGENT", "")
+        referer = environ.get("HTTP_REFERER", "")
         method = environ.get("REQUEST_METHOD", "GET")
         path = environ.get("PATH_INFO", "/")
 
@@ -263,7 +265,7 @@ class MicroguardWSGI:
             url=path,
             status=0,
             size=0,
-            referer="",
+            referer=referer,
             user_agent=ua,
         )
 

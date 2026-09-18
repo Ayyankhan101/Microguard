@@ -38,6 +38,7 @@ def _make_handler(
     ua="Mozilla/5.0",
     method="GET",
     url="/api/test",
+    referer="",
     xff="",
     xri="",
     scorer=None,
@@ -61,6 +62,7 @@ def _make_handler(
         "User-Agent": ua,
         "X-Original-Method": method,
         "X-Original-URI": url,
+        "Referer": referer,
         "X-Forwarded-For": xff,
         "X-Real-IP": xri,
     }.get(key, default)
@@ -186,6 +188,14 @@ class TestCheckHandler:
         handler.do_GET()
         entry = handler.scorer.score_request.call_args[0][0]
         assert entry.user_agent == "python-requests/2.28.0"
+
+    def test_referer_passed_through(self):
+        # The forwarded Referer must reach the scorer; before the fix it was
+        # hardcoded to "" here, so referer rules were dead on the live path.
+        handler = _make_handler(referer="https://example.com/catalog")
+        handler.do_GET()
+        entry = handler.scorer.score_request.call_args[0][0]
+        assert entry.referer == "https://example.com/catalog"
 
     def test_log_message_suppressed(self):
         handler = _make_handler()

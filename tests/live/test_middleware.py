@@ -522,3 +522,61 @@ class TestDecodeHeader:
 
     def test_invalid_utf8_is_replaced_rather_than_raising(self):
         assert _decode_header(b"caf\xff") == "caf�"
+
+
+class TestRefererReachesTheScorer:
+    """Fix: the ASGI and WSGI middleware now pass the real Referer to the
+    scorer. Before, both built the LogEntry with referer="", so referer-based
+    rules were dead in the in-process deployment modes too."""
+
+    def test_asgi_extracts_referer(self):
+        from microguard.live.scorer import fail_open_result
+        mw = MicroguardASGI.__new__(MicroguardASGI)
+        mw._trust_xff = False
+        mw._scorer = MagicMock()
+        mw._scorer.score_request.return_value = fail_open_result()
+
+        async def inner_app(scope, receive, send):
+            pass
+
+        mw.app = inner_app
+
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/catalog",
+            "headers": [
+                [b"x-real-ip", b"1.2.3.4"],
+                [b"user-agent", b"Mozilla/5.0"],
+                [b"referer", b"https://example.com/home"],
+            ],
+        }
+
+        async def mock_send(msg):
+            pass
+
+        asyncio.new_event_loop().run_until_complete(
+            mw(scope, MagicMock(), mock_send)
+        )
+        entry = mw._scorer.score_request.call_args[0][0]
+        assert entry.referer == "https://example.com/home"
+
+    def test_wsgi_extracts_referer(self):
+        from microguard.live.scorer import fail_open_result
+        mw = MicroguardWSGI.__new__(MicroguardWSGI)
+        mw._trust_xff = False
+        mw._scorer = MagicMock()
+        mw._scorer.score_request.return_value = fail_open_result()
+        mw.app = MagicMock(return_value=[b"OK"])
+
+        environ = {
+            "REQUEST_METHOD": "GET",
+            "PATH_INFO": "/catalog",
+            "HTTP_X_REAL_IP": "1.2.3.4",
+            "HTTP_USER_AGENT": "Mozilla/5.0",
+            "HTTP_REFERER": "https://example.com/home",
+            "REMOTE_ADDR": "127.0.0.1",
+        }
+        mw(environ, lambda status, headers: None)
+        entry = mw._scorer.score_request.call_args[0][0]
+        assert entry.referer == "https://example.com/home"
