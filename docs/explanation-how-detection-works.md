@@ -136,10 +136,10 @@ session, so it can afford to flag more.
 Live blocking turns the number into a 403 for someone trying to use your site,
 so it demands more agreement. At 0.85 only the 0.90–0.95 rules clear the bar
 unaided — known bot UA, scanner paths, attack tools, uniform timing,
-HTTP/1.0-only. Everything weaker, including "high request rate" at 0.75 and "all
-requests to one endpoint" at 0.80, needs the model to agree. Those weaker rules
-also describe a polling client and a single-endpoint app, which is exactly why
-they do not get to block alone.
+HTTP/1.0-only, and credential/API-key brute-force. Everything weaker, including
+"high request rate" at 0.75 and "all requests to one endpoint" at 0.80, needs
+the model to agree. Those weaker rules also describe a polling client and a
+single-endpoint app, which is exactly why they do not get to block alone.
 
 The [benchmark](results/2026-09-benchmark.md) measured what this costs. Because
 the model is a near-constant ≈ 0.6 on the live path (it does not "agree" with

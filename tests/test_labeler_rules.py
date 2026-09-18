@@ -570,7 +570,7 @@ class TestAPIKeyPatterns:
         label, confidence, reason = label_session(session)
 
         assert label == 'bot'
-        assert confidence == 0.75
+        assert confidence == 0.90
         assert 'API key parameter scanning' in reason
 
     def test_credential_brute_force(self, make_entry, make_session):

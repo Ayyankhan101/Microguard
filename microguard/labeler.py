@@ -494,10 +494,16 @@ def label_session(
             and not SINGLE_ENDPOINT_API_RE.search(most_common_path)):
         return 'bot', 0.70, f'repeated endpoint hit {most_common_count} times'
     
-    # 11. API key scanning / credential brute-force
+    # 11. API key scanning / credential brute-force. High confidence, not
+    # medium: every branch of _check_api_key_patterns is unambiguously an
+    # attack (>50% of requests carrying a credential param, 5+ rapid auth
+    # attempts, or 10+ POSTs to auth endpoints) — no human or legitimate
+    # client does this. At 0.75 the rule could never block at the 0.85 live
+    # threshold; at 0.90 it clears the bar and the credential-stuffing case the
+    # benchmark showed the blend discarding is caught, with no human-FP risk.
     api_bot, api_reason = _check_api_key_patterns(session)
     if api_bot:
-        return 'bot', 0.75, api_reason
+        return 'bot', 0.90, api_reason
     
     # === LOW CONFIDENCE BOT SIGNALS (0.55-0.69) ===
     
