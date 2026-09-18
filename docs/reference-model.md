@@ -132,6 +132,14 @@ The holdout is the honest generalization number. It is easy to score well on —
 see [training data](explanation-training-data.md) for why a perfect result there
 is a caution rather than a win.
 
+For a measurement that does *not* come from this project's own data, the
+[real-world benchmark](results/2026-09-benchmark.md) scores the shipped model
+against exact ground truth on the live per-request path (actor-level ROC-AUC
+≈ 0.77 — it ranks bots above humans but is miscalibrated, so no fixed threshold
+the tool uses exploits it) and tests a model retrained on the live distribution.
+That benchmark supersedes the synthetic `adversarial_eval.json` number; treat it
+as the reference for "does the model catch evasive bots".
+
 ## Evaluating
 
 ```bash

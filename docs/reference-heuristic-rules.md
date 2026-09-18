@@ -116,6 +116,16 @@ requests over 1.5ms extrapolates to roughly 200,000 req/min — a real visitor
 blocked by arithmetic. Any rate heuristic shared between the two paths needs
 checking against microsecond timestamps, not log-file granularity.
 
+**The two paths also disagree on the `Referer`.** `microguard/live/server.py`
+(and the middleware) build every live `LogEntry` with `referer=""` — the
+forwarded `Referer` header is never parsed. So on the **live** path rule 11
+("no referrer on all requests") fires on any 20-plus-request session regardless
+of what the client actually sent, and the human referer rule (rule 21) can never
+fire. Offline `scan` reads the referer from the log line, so the same session can
+be scored differently by `scan` and by `serve`. The
+[benchmark](results/2026-09-benchmark.md) documents this; it inflates live recall
+on high-volume clients and is a known gap, not a designed behaviour.
+
 Rule 10's floor also makes **rule 16** mostly unreachable. A session of more than
 20 requests spanning 1 to 5 seconds always exceeds 50 req/min, so rule 10 claims
 it first at 0.75. Rule 16 only fires when the burst is shorter than

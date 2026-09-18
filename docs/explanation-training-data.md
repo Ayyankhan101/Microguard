@@ -252,15 +252,33 @@ through the dashboard, for the reason in the third row of the table above.
 
 ### What the model is worth today
 
-Nothing independent of the heuristic. `compute_combined_score` weights it at
-0.6, and that 0.6 is reading a column that cannot occur in production traffic.
-On real input the model returns the bot-side constant for genuine browser
-sessions — in `data/sample_access.log` both a Chrome session and a
-`python-requests` scraper score 0.731, and only the heuristic chain separates
-them.
+Nothing independent of the heuristic, at the thresholds the tool uses.
+`compute_combined_score` weights it at 0.6, and in a batch `scan` that 0.6 is
+reading a column that cannot occur in production traffic — in
+`data/sample_access.log` both a Chrome session and a `python-requests` scraper
+score 0.731, and only the heuristic chain separates them.
 
-Until observe-only collection produces labeled human sessions, the rule chain in
+The [real-world benchmark](results/2026-09-benchmark.md) sharpened this, and
+not entirely in the direction the "constant 0.731" story implies. On the **live
+per-request path** the shipped model is *not* a flat constant: its score varies
+(median ≈ 0.64) and it actually ranks bots above humans on the lab traffic
+(actor-level ROC-AUC ≈ 0.77). The problem is calibration, not a dead network —
+the scores all sit high, so at the `model_score > 0.5` cut it flags every bot
+**and** every human, and inside the blend the heuristic floor/cap still drives
+the verdict. So the practical conclusion holds: at the thresholds microguard
+ships with, the model adds no usable independent verdict, and the rule chain in
 `labeler.py` is the product.
+
+The benchmark also measured the flip side. A model **retrained on the live
+per-request distribution** recovers the one case the rules are blind to — the
+distributed browser farm (one profile across many IPs) — with zero added human
+false positives *on the lab's simulated humans*. Read that as an upper bound,
+not a shipping result: those humans are cleanly separable from bots in feature
+space (sklearn logistic regression and random forest hit the same perfect
+score), and on real human traffic that separation does not hold — `microguard
+scan` flags 57% of real Zanbil shoppers. Retraining is a real lead; it is not
+yet a model that is safe to block with. Until observe-only collection produces
+labeled *real* human sessions, that stays true.
 
 ## Rebuilding it
 

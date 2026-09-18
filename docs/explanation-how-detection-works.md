@@ -141,6 +141,16 @@ requests to one endpoint" at 0.80, needs the model to agree. Those weaker rules
 also describe a polling client and a single-endpoint app, which is exactly why
 they do not get to block alone.
 
+The [benchmark](results/2026-09-benchmark.md) measured what this costs. Because
+the model is a near-constant ≈ 0.6 on the live path (it does not "agree" with
+anything in particular), the weaker rules never get lifted over 0.85 — so the
+blend at 0.85 catches materially fewer bots than the rule labeler alone. On the
+evasion ladder the rule labeler flags 100% of browser-UA-spoofing bots while
+the shipped blend flags 44%. That is the design working as intended (a weak
+rule should not block a polling client), but the cost is real: if you trust
+your rule set, the blend threshold is leaving recall on the table. See
+[tune blocking](howto-tune-blocking.md).
+
 The strict `>` on the live path matters at the edges. At threshold 0.5 the
 neutral verdict — "no strong signals either way", human at 0.50 — produces
 exactly 0.5, and a `>=` would block every unknown visitor. It also makes
@@ -176,10 +186,23 @@ Being explicit, because the number this produces is only as good as its inputs:
   [training data](explanation-training-data.md).
 - **Sessions key on IP by default.** Shared NAT merges many people into one
   session; a rotating residential proxy pool splits one bot into many, each too
-  short to accumulate a pattern.
-- **No evidence against sophisticated bots.** The evaluation sets contain real
-  attack traffic and synthesized evasion, not an adversary adapting to this
-  specific detector.
+  short to accumulate a pattern. The [benchmark](results/2026-09-benchmark.md)
+  confirms this is the real blind spot: a distributed browser farm (one profile
+  across ten IPs, low volume each) evades the rules entirely.
+- **The live check server drops the `Referer`.** `microguard/live/server.py`
+  builds every request with `referer=""`, so on the live path the referer-based
+  rules and features are inert — the "no referrer on all requests" rule fires on
+  any 20-plus-request session regardless of what the client sent. Offline `scan`
+  reads the referer from the log; the live path does not.
+- **Volume rules cannot tell a busy human from a scraper.** On a real
+  image-heavy store, human shoppers make 100+ requests per session, so the
+  `extremely high request count` rule flags them — the benchmark measured 57% of
+  real human shoppers flagged by `microguard scan`.
+- **Sophisticated bots: now measured, not assumed.** The
+  [evasion-ladder benchmark](results/2026-09-benchmark.md) drives the same bots
+  up to a real headless-browser farm. The rules hold against UA spoofing and
+  human pacing but are blind to the distributed low-volume case, and the shipped
+  0.85 blend catches far less than the rules alone.
 
 Run it in observe-only mode against your own traffic before you let it block
 anything. [Tuning blocking](howto-tune-blocking.md) covers how.

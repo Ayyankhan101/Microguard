@@ -73,6 +73,16 @@ A confident rule floors the score at its own confidence, so a rule can only bloc
 unaided when its confidence exceeds your threshold. At the default 0.85, the
 bottom four rows already need the model to agree.
 
+> **High-volume sites, read this.** On a real image-heavy store, human shoppers
+> legitimately make 100+ requests per session (thumbnails, filters, AJAX), which
+> trips `extremely high request count`. The [benchmark](results/2026-09-benchmark.md)
+> measured `microguard scan` flagging **57% of real human shoppers** on the
+> Zanbil e-commerce log for exactly this reason. The live blocker at 0.85 spares
+> them (that rule sits at 0.85 and the block test is strict `>`), but if you run
+> `scan` as an audit or lower the live threshold, raise it above 0.85 or exempt
+> your asset/AJAX paths first. A per-page request count that looks bot-like in a
+> REST API is normal for a browser loading a rich page.
+
 ```bash
 microguard serve --block-threshold 0.92
 ```
@@ -134,6 +144,13 @@ below 0.5 unless you mean it.
 Lower the threshold so the sequence rules can block on their own, using the table
 above to pick the value. Dropping from 0.85 to 0.75 lets "all requests to same
 endpoint" and "extremely high request count" block unaided.
+
+The [benchmark](results/2026-09-benchmark.md) makes the case concrete: at the
+default 0.85 the blend catches far fewer evasive bots than the rule labeler
+alone (44% vs 100% of browser-UA-spoofing bots), because the near-constant model
+score never lifts a 0.70–0.85 rule over the bar. If you have watched your own
+traffic and trust the rule set, dropping toward 0.75 recovers most of that gap —
+after confirming it does not also catch the high-volume humans above.
 
 Do this only after checking `model_loaded` is `true`. Without the model, lowering
 the threshold is the only lever you have, and it is the blunt one.
