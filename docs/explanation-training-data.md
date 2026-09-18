@@ -4,6 +4,15 @@ The model is only as good as what it was trained on. This is an honest account
 of that data: where each class came from, which parts are real, which are
 synthetic, and which conclusions the numbers do not support.
 
+> **Update — the shipped model now trains on real human traffic.** Most of this
+> page describes the problem that motivated a fix, which has since landed: the
+> human class is now real Zanbil shopper sessions extracted the same way as the
+> bots, not a synthetic single-source file. On held-out real traffic the model
+> went from ROC-AUC 0.34 to 0.97, and the three dataset-integrity guards that
+> were `xfail(strict)` now pass. The full account, with caveats, is in
+> [A realistic model, trained on real human traffic](results/2026-09-realistic-model.md).
+> Read the rest of this page as the history that made that fix necessary.
+
 ## The problem
 
 Supervised bot detection needs labeled sessions, and nobody has them. Real

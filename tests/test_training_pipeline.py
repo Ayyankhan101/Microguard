@@ -760,3 +760,97 @@ class TestBuildDataset:
         payload = json.loads(out.read_text(encoding='utf-8'))
         assert payload['n_samples'] > 0
         assert 'Dataset saved to' in capsys.readouterr().out
+
+
+class TestBuildRealisticDataset:
+    """build_realistic_dataset against tiny fixtures, not the 10M-line Zanbil
+    corpus and the 213K-line organization-x one (both gitignored, so this is
+    the only way the module runs on CI). Points the module's globals at
+    tmp_path and stubs the org-x reader, running the real code in milliseconds.
+    """
+
+    def _zanbil_line(self, ip, url, second, ua, referer="-"):
+        return (f'{ip} - - [22/Jan/2019:03:{second:02d}:14 +0330] '
+                f'"GET {url} HTTP/1.1" 200 100 "{referer}" "{ua}"')
+
+    @pytest.fixture
+    def sandboxed(self, tmp_path, monkeypatch):
+        from microguard.parser import LogEntry as LE
+        from microguard.training import build_realistic_dataset as bru
+
+        days = tmp_path / "days"
+        labels = tmp_path / "labels"
+        days.mkdir()
+        labels.mkdir()
+        browser = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")
+        lines = []
+        # A human_proxy actor (browser UA) and a crawler bot actor, 5 requests each.
+        for i in range(5):
+            lines.append(self._zanbil_line("5.1.1.1", f"/product/{i}", i, browser,
+                                           referer="https://shop/"))
+            lines.append(self._zanbil_line("66.249.66.1", f"/catalog/{i}", i,
+                                           "Mozilla/5.0 (compatible; Googlebot/2.1)"))
+        (days / "2019-01-22.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        (labels / "2019-01-22.json").write_text(json.dumps({
+            "5.1.1.1": {"label": "human_proxy", "requests": 5},
+            "66.249.66.1": {"label": "verified_crawler", "requests": 5},
+            "9.9.9.9": {"label": "unlabeled", "requests": 1},
+        }), encoding="utf-8")
+
+        # org-x: a couple of real-shaped attack entries, via the stubbed reader.
+        def fake_orgx_entries():
+            return [
+                LE(ip="1.2.3.4", timestamp=__import__("datetime").datetime(
+                    2020, 3, 4, 12, 0, i, tzinfo=__import__("datetime").timezone.utc),
+                   method="GET", url=f"/scan/{i}", status=404, size=0,
+                   referer="-", user_agent="Go-http-client/1.1")
+                for i in range(5)
+            ]
+        rules_path = tmp_path / "rules.yaml"
+        rules_path.write_text(
+            '- id: dir_scan\n  ground_truth_label: dir_scan_go\n  sensitivity: moderate\n'
+            '  filter:\n    - "Go-http-client"\n', encoding="utf-8")
+
+        monkeypatch.setattr(bru, "ZANBIL_DAYS", str(days))
+        monkeypatch.setattr(bru, "ZANBIL_LABELS", str(labels))
+        monkeypatch.setattr(bru, "ORGX_RULES_PATH", str(rules_path))
+        monkeypatch.setattr(bru, "load_all_organization_x_entries", fake_orgx_entries)
+        monkeypatch.setattr(bru, "DATA_DIR", str(tmp_path))
+        return bru, tmp_path
+
+    def test_real_humans_and_bots_from_the_same_site(self, sandboxed):
+        bru, _tmp = sandboxed
+        data = bru.build_dataset()
+        assert data['n_human'] >= 1 and data['n_bot'] >= 1
+        assert data['n_features'] == FEATURE_COUNT
+        # Zanbil is on BOTH sides -> human and bot both carry a zanbil provenance.
+        human_src = {p for p, l in zip(data['provenance'], data['labels']) if l <= 0.5}
+        assert any(p.startswith('zanbil_human_proxy') for p in human_src)
+
+    def test_human_class_spans_more_than_one_provenance_is_possible(self, sandboxed):
+        bru, _tmp = sandboxed
+        data = bru.build_dataset()
+        # Provenance carries the day, and group ids are hashed (no raw IPs).
+        assert all('.' not in gid.split('_')[-1] for gid in data['group_ids'])
+
+    def test_orgx_bots_are_included_when_asked(self, sandboxed):
+        bru, _tmp = sandboxed
+        with_orgx = bru.build_dataset(include_orgx=True)
+        without = bru.build_dataset(include_orgx=False)
+        assert with_orgx['n_bot'] > without['n_bot']
+        assert any('orgx' in p for p in with_orgx['provenance'])
+
+    def test_main_writes_the_dataset(self, sandboxed, capsys):
+        bru, tmp = sandboxed
+        bru.main()
+        out = tmp / "realistic_training_data.json"
+        assert out.exists()
+        assert json.loads(out.read_text(encoding="utf-8"))['n_samples'] > 0
+        assert 'saved' in capsys.readouterr().out
+
+    def test_missing_labels_dir_is_a_clear_error(self, tmp_path, monkeypatch):
+        from microguard.training import build_realistic_dataset as bru
+        monkeypatch.setattr(bru, "ZANBIL_LABELS", str(tmp_path / "nope"))
+        with pytest.raises(SystemExit):
+            bru.build_dataset()

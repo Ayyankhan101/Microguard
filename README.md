@@ -738,14 +738,15 @@ on real data, but it has not been adversarially tested. Specifically:
   strong against evasive-but-noisy bots and blind to the low-and-slow distributed
   case. The old synthetic `data/adversarial_eval.json` number is superseded by
   this; treat the ladder as the reference.
-- **The real-human baseline has low feature diversity.** Of the 19 model
-  features, only 9 (timing + request-count based) vary across
-  `data/harvard_training_data.json`'s "real" human rows; the other 10
-  (`header_consistency_score`, `payload_entropy`, `status_code_entropy`,
-  `ua_category`, etc.) are constant placeholder values, not genuine
-  per-session variation. This makes bot/human separation easier to achieve
-  in testing than it would be against fully-realistic diverse human
-  traffic — a material caveat on every accuracy number in this README.
+- **The model now trains on real human traffic.** It used to learn the human
+  class from one file whose feature columns were constant placeholders — a leak
+  that made the shipped model score **ROC-AUC 0.34 on real traffic** (worse than
+  chance). The human class is now real Zanbil shopper sessions extracted the
+  same way as the bots; on held-out real traffic the model scores **AUC 0.97,
+  catching 70% of real bots at zero human false positives**, and the three
+  dataset-integrity leakage guards now pass. Full account, with caveats (proxy
+  labels, one e-commerce site, an offline-scan-first model):
+  [A realistic model, trained on real human traffic](docs/results/2026-09-realistic-model.md).
 - **gRPC and webhook traffic are labeled `automated-integration`, not
   bot/human.** Correct in spirit (neither has a human operator), but it
   means microguard doesn't attempt bot-vs-human classification for those

@@ -34,7 +34,8 @@ def _load_training_data():
     Mirrors that module's priority order so this tracks reality rather than
     assuming a filename, the same way `test_training_quality.py` does.
     """
-    for name in ('real_bot_training_data.json', 'harvard_training_data.json'):
+    for name in ('realistic_training_data.json', 'real_bot_training_data.json',
+                 'harvard_training_data.json'):
         path = os.path.join(DATA_DIR, name)
         if os.path.exists(path):
             with open(path, encoding='utf-8') as handle:
@@ -56,20 +57,10 @@ def _columns_by_class(data):
 class TestNoColumnIsASourceFingerprint:
     """A column constant within one class identifies the file, not the class."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "8 columns are a single constant across the whole human class, "
-            "because the human class comes from exactly one generated file: "
-            "endpoint_sequence_entropy, has_accept_language, ua_category, "
-            "payload_entropy, status_code_entropy, error_rate, image_ratio, "
-            "night_ratio. (method_mismatch_count is constant in BOTH classes "
-            "-- useless, not a leak -- and header_consistency_score is caught "
-            "by the separability test below.) Fixing this needs real human "
-            "sessions extracted by the same extract_features as the bot "
-            "class; see docs/explanation-training-data.md."
-        ),
-    )
+    # Passes since realistic_training_data.json: the human class is now real
+    # Zanbil sessions extracted the same way as the bots, so no column is a
+    # single constant across it. Was xfail(strict) while the human class came
+    # from one generated file. See docs/results/2026-09-realistic-model.md.
     def test_no_column_is_constant_within_a_class(self):
         data, source = _load_training_data()
         human, bot = _columns_by_class(data)
@@ -95,15 +86,10 @@ class TestNoColumnIsASourceFingerprint:
 class TestNoColumnPerfectlySeparatesTheClasses:
     """Zero overlap in a real behavioural feature means it is not behavioural."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "header_consistency_score is 0.7 for all 1000 humans and 1.0 for "
-            "all 2580 bots -- zero overlap, and 0.7 is unreachable from "
-            "features.py's 1.0/len(ua_variants). It is the column the shipped "
-            "model learned."
-        ),
-    )
+    # Passes since realistic_training_data.json: no single feature separates
+    # real humans from real bots without overlap. Was xfail(strict) while
+    # header_consistency_score was 0.7 for every synthetic human and 1.0 for
+    # every bot -- the column the shipped model learned.
     def test_no_column_separates_the_classes_without_overlap(self):
         data, source = _load_training_data()
         human, bot = _columns_by_class(data)
@@ -132,14 +118,9 @@ class TestTheHumanClassHasMoreThanOneSource:
     that generator, however many individual columns get patched.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "every human row is provenance 'harvard_human'. Real human "
-            "sessions require observe-only collection from live traffic; "
-            "there is no second source in the repo."
-        ),
-    )
+    # Passes since realistic_training_data.json: the human class is real Zanbil
+    # shopper sessions spread across five distinct collection days, not one
+    # generated file. Was xfail(strict) while every human row was 'harvard_human'.
     def test_human_rows_come_from_more_than_one_provenance(self):
         data, source = _load_training_data()
         provenance = data.get('provenance')

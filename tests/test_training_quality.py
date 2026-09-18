@@ -35,7 +35,8 @@ def _load_training_data():
     model on — mirrors that module's own priority order, so these tests
     track reality instead of assuming a specific file.
     """
-    for name in ('real_bot_training_data.json', 'harvard_training_data.json'):
+    for name in ('realistic_training_data.json', 'real_bot_training_data.json',
+                 'harvard_training_data.json'):
         path = os.path.join(DATA_DIR, name)
         if os.path.exists(path):
             with open(path, encoding='utf-8') as f:
@@ -526,18 +527,21 @@ def _mask_status_features(rows):
 
 
 class TestLiveFeatureShape:
-    """The model must decide the same way with or without status features.
+    """The live path is status-blind, so its decisions must stay close to scan's.
 
     The live entrypoints score a request before the app responds, so they pass
-    status=0 and two of the nineteen features are always zero. That was raised
-    as a train/serve skew needing a retrain with feature dropout. Measured
-    against the shipped model it is not: decisions are identical and the mean
-    score shift is ~0.0001, because the model gives those two inputs almost no
-    weight. These tests pin that. If a future retrain makes the model
-    status-dependent, the live path degrades silently — and this fails first.
+    status=0 and two of the nineteen features (status_code_entropy, error_rate)
+    are always zero. The realistic model DOES use those two — real bots get more
+    404s than real shoppers, genuine signal the old leaked model ignored — so
+    the live path and `microguard scan` no longer agree on every session. But
+    the divergence is small and bounded: on the held-out set only ~0.4% of
+    decisions flip and the worst score shift is ~0.15. These tests pin that
+    bound; a retrain that made the live path swing wildly would fail here first.
+    The realistic model is therefore strongest as an offline audit — see
+    docs/results/2026-09-realistic-model.md.
     """
 
-    def test_masking_status_features_changes_no_decision(self):
+    def test_masking_status_features_changes_few_decisions(self):
         model = _load_model()
         data = _load_holdout()
         rows = data['features']
@@ -546,7 +550,11 @@ class TestLiveFeatureShape:
             for real, live in zip(rows, _mask_status_features(rows))
             if (model.predict(real) > 0.5) != (model.predict(live) > 0.5)
         )
-        assert crossed == 0, f"{crossed} sessions flip when status features are zeroed"
+        rate = crossed / len(rows) if rows else 0.0
+        assert rate < 0.03, (
+            f"{crossed}/{len(rows)} = {rate:.1%} of sessions flip when status "
+            "features are zeroed — the live path has drifted too far from scan"
+        )
 
     def test_live_shape_holds_accuracy(self):
         model = _load_model()
@@ -589,7 +597,7 @@ class TestLiveFeatureShape:
             abs(model.predict(real) - model.predict(live))
             for real, live in zip(rows, _mask_status_features(rows))
         ]
-        assert max(shifts) < 0.12, f"max score shift {max(shifts):.4f} is no longer negligible"
+        assert max(shifts) < 0.20, f"max score shift {max(shifts):.4f} is no longer negligible"
 
 
 class TestModelLoadingIsComplete:
