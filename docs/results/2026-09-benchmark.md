@@ -216,11 +216,19 @@ Trained on 1463 live per-request vectors from seeds [1, 2], levels ['L0', 'L1', 
    afterwards; microguard scores the real lab IPs. Zanbil's real public IPs are
    untouched.
 
+## How current these numbers are
+
+Rendered at `6a1932fa1187`. Each suite records the commit it ran against, so this section is derived, not asserted.
+
+**Provenance unknown:** `Suite A (evasion ladder)`, `Suite B (Zanbil)`, `Suite C (performance)`, `Suite D (model track)`. These ran before the suites recorded a commit, so whether they match the current code cannot be determined from the result files.
+
 ## Fixes applied since this benchmark
 
-The numbers above were measured **before** the three defects the benchmark
-surfaced were fixed; they are kept as the baseline that motivated the fixes.
-What changed (see the git history on `microguard/live/` and `microguard/labeler.py`):
+Three defects the benchmark surfaced, and what changed in response (see the git
+history on `microguard/live/` and `microguard/labeler.py`). Whether the tables
+above were measured before or after these landed is answered by the provenance
+section, from what each suite recorded at run time -- it is not asserted here,
+because this paragraph cannot know when the tables were regenerated:
 
 - **The live path now reads the `Referer`.** The check server and the ASGI/WSGI
   middleware built every request with `referer=""`; all three now read the real
@@ -237,5 +245,5 @@ What changed (see the git history on `microguard/live/` and `microguard/labeler.
   `>100 requests` rule sits at exactly 0.85 by design, and dropping below it
   re-introduces the real-human false positives the volume-rule fix removed.
 
-Re-running the full matrix under the fixes would refresh these tables; the
-committed baseline is deliberately the pre-fix state.
+Re-running the full matrix refreshes these tables, and the provenance section
+above will then say so on its own.

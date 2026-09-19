@@ -3,7 +3,9 @@
 Reads whatever suites have produced (ladder scored, model track, Zanbil,
 performance) and writes docs/results/2026-09-benchmark.md plus the SVGs it
 embeds. Missing suites are noted as "not yet run", so this can be run while the
-benchmark is still filling in. Deterministic: same inputs, same bytes out.
+benchmark is still filling in. Deterministic given the same inputs AND the
+same checkout: the provenance section reports the commit being rendered, so
+the same results rendered at a different commit differ by that section.
 
     python -m benchmarks.report
 """
@@ -13,6 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from benchmarks import provenance
 from benchmarks.figures import LABELS, PALETTE, grouped_bars, ladder_chart
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -509,9 +512,11 @@ DEVIATIONS = """## Deviations from the pre-registration
 
 FIXES_NOTE = """## Fixes applied since this benchmark
 
-The numbers above were measured **before** the three defects the benchmark
-surfaced were fixed; they are kept as the baseline that motivated the fixes.
-What changed (see the git history on `microguard/live/` and `microguard/labeler.py`):
+Three defects the benchmark surfaced, and what changed in response (see the git
+history on `microguard/live/` and `microguard/labeler.py`). Whether the tables
+above were measured before or after these landed is answered by the provenance
+section, from what each suite recorded at run time -- it is not asserted here,
+because this paragraph cannot know when the tables were regenerated:
 
 - **The live path now reads the `Referer`.** The check server and the ASGI/WSGI
   middleware built every request with `referer=""`; all three now read the real
@@ -528,8 +533,8 @@ What changed (see the git history on `microguard/live/` and `microguard/labeler.
   `>100 requests` rule sits at exactly 0.85 by design, and dropping below it
   re-introduces the real-human false positives the volume-rule fix removed.
 
-Re-running the full matrix under the fixes would refresh these tables; the
-committed baseline is deliberately the pre-fix state.
+Re-running the full matrix refreshes these tables, and the provenance section
+above will then say so on its own.
 """
 
 
@@ -556,6 +561,14 @@ def build() -> None:
     if track:
         parts.append(_model_section(track))
     parts.append(DEVIATIONS)
+    currency = provenance.describe({
+        "Suite A (evasion ladder)": scored,
+        "Suite B (Zanbil)": zanbil,
+        "Suite C (performance)": perf,
+        "Suite D (model track)": track,
+    })
+    if currency:
+        parts.append(currency)
     parts.append(FIXES_NOTE)
 
     for fname, svg in figures.items():

@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from benchmarks.metrics import Rate, average_precision, bootstrap_interval, roc_auc
+from benchmarks.provenance import stamp
 from microguard.features import FEATURE_NAMES
 from microguard.model import BotDetector
 
@@ -283,6 +284,7 @@ def _available_seeds(config: str) -> list[int]:
 
 def main() -> None:
     result = run()
+    result["provenance"] = stamp()
     OUT.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
     if "error" in result:
         print(result["error"])
