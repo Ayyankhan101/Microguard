@@ -18,7 +18,12 @@ redis = pytest.importorskip("redis", reason="needs the 'live' extra")
 
 from microguard.live.middleware import MicroguardASGI, MicroguardWSGI
 
-SCANNER_PATH = "/wp-admin/setup-config.php"
+# An unambiguous probe: no browser requests /phpmyadmin in the course of
+# using a site. /wp-admin used to live here, but it is a path a human
+# administrator legitimately visits, so it moved to the rule that gates on
+# no-referrer-across-the-session and no longer returns the 0.95 scanner
+# verdict these tests are asserting.
+SCANNER_PATH = "/phpmyadmin/index.php"
 BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 

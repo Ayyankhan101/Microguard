@@ -79,15 +79,46 @@ API_KEY_SCAN_RE = re.compile('|'.join(API_KEY_SCAN_PATTERNS), re.IGNORECASE)
 MIN_CREDENTIAL_SCAN_REQUESTS = 5
 
 # --- Known botnet / attack signatures ---
-# Mirai and IoT botnet scanning patterns
+# Mirai and IoT botnet scanning patterns, anchored to the start of the path.
+#
+# These were unanchored substrings, and three of them matched the ordinary web:
+#   \.php$  every page of a phpBB, WordPress, MediaWiki or Joomla site
+#   \.asp$  every page of a classic ASP site
+#   /adv    /advanced-search, /advertising, /advice
+# With the 0.3 ratio in _check_botnet_signatures that returned bot 0.88, above
+# the 0.85 live threshold, so a phpBB reader or anyone visiting /advanced-search
+# was blocked. Verified before the fix:
+#   ['/index.php', '/viewforum.php', '/viewtopic.php'] -> bot 0.88
+#   ['/', '/advanced-search', '/advertising']          -> bot 0.88
+#
+# A Mirai probe requests these as whole paths, so anchoring costs no detection:
+# /shell.cgi is still /shell.cgi. The page extensions are simply not botnet
+# signatures and are gone.
 BOTNET_URL_PATTERNS = [
-    r'/shell\.cgi', r'/omega\.cgi', r'/adv', r'/boaform',
-    r'/HNAP1', r'/tr069', r'/cpe', r'/device',
-    r'/HNAP', r'/goform', r'/cgi-bin/luci',
-    r'\.asp$', r'\.cgi$', r'\.php$',  # common IoT endpoints
-    r'/cmd', r'/system', r'/exec', r'/run',
+    r'^/shell\.cgi', r'^/omega\.cgi', r'^/boaform',
+    r'^/HNAP1?\b', r'^/tr069', r'^/goform', r'^/cgi-bin/luci',
+    r'^/adv$', r'^/cpe$', r'^/device$',
+    r'^/cmd$', r'^/system$', r'^/exec$', r'^/run$',
 ]
 BOTNET_URL_RE = re.compile('|'.join(BOTNET_URL_PATTERNS), re.IGNORECASE)
+
+# Below this many requests the 0.3 botnet ratio is measuring the denominator:
+# one request to /cmd is 100% of a one-request session.
+MIN_BOTNET_SCAN_REQUESTS = 3
+
+# Above this many requests in one session, the client is not a person, whatever
+# its timing or endpoint variety looks like.
+#
+# Measured against the 3,266 real Zanbil human sessions in
+# data/realistic_training_data.json: p50 60, p95 345, p99 599, p99.9 1123,
+# max 1497. At 2000 the rule flags 0 of them and catches 46 bot sessions
+# (1.30%); at 300 it would have flagged 220 real humans (6.74%).
+#
+# Caveat for whoever retunes this: that human label is Zanbil's converting
+# shoppers, roughly 0.80% of the actors in the log, so it is the best available
+# distribution and not the whole human population. Revisit when the day-holdout
+# re-measurement lands.
+MAX_HUMAN_SESSION_REQUESTS = 2000
 
 # Credential stuffing / brute-force patterns
 BRUTE_FORCE_ENDPOINTS = [
@@ -302,15 +333,24 @@ def _check_botnet_signatures(session: SessionLike) -> tuple[bool, str]:
     """
     entries = session.requests
     ua = session.user_agent.lower()
-    urls = [e.url for e in entries]
-    
+    # Query strings stripped: the patterns are anchored whole paths, so /adv?x=1
+    # must still match /adv. _check_cloudflare_signals strips for the same reason.
+    urls = [e.url.split('?')[0] for e in entries]
+
     # Known attack tools
     if ATTACK_TOOL_RE.search(ua):
         return True, f'attack tool UA: {session.user_agent[:50]}'
-    
+
     # Botnet URL patterns (Mirai, IoT scanning)
+    # Two hits minimum, not one. Anchoring fixed the ordinary-web matches, but
+    # /system, /cmd, /exec and /run are still plausible application paths, and a
+    # single hit in a three-request session clears a 0.3 ratio: ['/', '/system',
+    # '/status'] was blocked at 0.88. A router sweep probes several endpoints;
+    # one path that happens to share a name with a Mirai target is not a sweep.
     botnet_hits = sum(1 for url in urls if BOTNET_URL_RE.search(url))
-    if botnet_hits > 0 and botnet_hits / len(entries) > 0.3:
+    if (botnet_hits >= 2
+            and len(entries) >= MIN_BOTNET_SCAN_REQUESTS
+            and botnet_hits / len(entries) > 0.3):
         return True, f'botnet scanning pattern ({botnet_hits} IoT endpoint hits)'
     
     # High-volume scanning with 403/404 responses (directory brute-force)
@@ -450,10 +490,28 @@ def label_session(
     if HIGH_CONF_BOT_RE.search(ua):
         return 'bot', 0.95, f'known bot/monitoring UA: {session.user_agent[:50]}'
     
-    # 2. Known vulnerability scanner patterns in URL
-    scanner_patterns = ['/wp-admin', '/wp-login', '/phpmyadmin', '/.env',
-                       '/config.json', '/admin/login', '/xmlrpc.php',
-                       '/wp-content', '/wp-includes', '/cgi-bin']
+    # 2. Known vulnerability scanner patterns in URL.
+    #
+    # Only paths a browser never requests in the course of using a site, so a
+    # single hit stays sufficient. A ratio gate would be the wrong instrument
+    # here: it would let an attacker hide one /.env probe behind a handful of
+    # ordinary requests.
+    #
+    # Removed, with reasons, because each matched ordinary traffic and this
+    # rule returns 0.95 -- well above the 0.85 live threshold:
+    #   /wp-content, /wp-includes  WordPress serves every theme stylesheet and
+    #                              every upload from these. Verified: a visitor
+    #                              loading ['/', '/wp-content/themes/x/style.css']
+    #                              was blocked at 0.95.
+    #   /config.json               a common SPA boot file. ['/', '/config.json',
+    #                              '/app/home'] was blocked at 0.95.
+    #   /admin/login, /wp-admin,   a human administrator signing in. These stay
+    #   /wp-login                  covered by rule 5 below, which gates the same
+    #                              endpoints on no-referrer-across-the-whole-
+    #                              session: an admin browsing has a referer
+    #                              chain, a scanner sweeping them has none.
+    scanner_patterns = ['/phpmyadmin', '/.env', '/.git', '/phpinfo',
+                        '/xmlrpc.php', '/cgi-bin']
     if any(any(p in url.lower() for p in scanner_patterns) for url in urls):
         return 'bot', 0.95, 'vulnerability scanner pattern detected'
     
@@ -512,6 +570,30 @@ def label_session(
     # 5. Very high request rate (>100 non-asset requests in session)
     if volume.pages > 100:
         return 'bot', 0.85, f'extremely high request count: {volume.pages} pages'
+
+    # 5b. Raw request volume, embedded assets included.
+    #
+    # Rules 5, 7 and 12 count pages on purpose: that is what stops a browser's
+    # subresource loads reading as a flood. The cost is that a session made
+    # ENTIRELY of asset-shaped URLs has volume.pages == 0 and is invisible to
+    # all three. STATIC_ASSET_RE matches `.json$` and the segments /media/,
+    # /uploads/, /cdn/ and /static/, so a JSON-API or image scrape hit 3,000
+    # requests, fell through to the human rules below, and scoring.py then
+    # capped its blended score at 1 - 0.70 = 0.30: unblockable at any model
+    # score.
+    #
+    # This is the floor under that. See MAX_HUMAN_SESSION_REQUESTS for the
+    # measurement behind the number.
+    # 0.90, not 0.85: scorer.py:380 blocks on `combined > threshold` with a
+    # default threshold of 0.85, so a rule returning exactly 0.85 only blocks
+    # when the model happens to push it over, and P2-14 measured the shipped
+    # model's scores as rarely high enough to do that. A backstop that blocks
+    # conditionally is not a backstop. The number is carried by the
+    # measurement: 0 of 3,266 real human sessions reach this volume.
+    if volume.requests > MAX_HUMAN_SESSION_REQUESTS:
+        return 'bot', 0.90, (
+            f'extremely high raw request count: {volume.requests} requests'
+        )
     
     # 6. All requests to same endpoint (scraper pattern) — not for
     # single-endpoint APIs (GraphQL/SOAP/RPC), where this is normal.
@@ -584,13 +666,25 @@ def label_session(
         return 'bot', 0.60, f'mostly night-time activity ({volume.night_pages}/{volume.pages} pages)'
     
     # === HUMAN SIGNALS (0.55-0.75) ===
-    
+    #
+    # Every rule below is bounded by MAX_HUMAN_SESSION_REQUESTS. A confident
+    # human verdict is not a neutral outcome: scoring.py caps the blended score
+    # at 1 - confidence for a human label, so rule 16 returning 0.70 on a
+    # 3,000-request scrape pinned it at 0.30 and made it unblockable whatever
+    # the model said. Rule 5b above catches those first now; this bound is the
+    # second half of the same fix, so a large session can never acquire a
+    # confident human label on timing or endpoint variety alone. Past the
+    # bound, the chain falls through to the 0.50 "no strong signals" default,
+    # which is the honest answer: these rules recognise a visitor, and this is
+    # not one.
+    human_plausible = volume.requests <= MAX_HUMAN_SESSION_REQUESTS
+
     # 15. Known browser user agent with normal behavior
     if BROWSER_UA_RE.search(ua) and session.request_count < 50 and session.duration > 30:
         return 'human', 0.75, f'known browser, reasonable session ({session.request_count} req, {session.duration:.0f}s)'
     
     # 16. Variable timing pattern (high CV)
-    if session.request_count >= 3:
+    if human_plausible and session.request_count >= 3:
         timestamps = sorted([e.timestamp for e in entries])
         gaps = [(timestamps[i+1] - timestamps[i]).total_seconds() 
                 for i in range(len(timestamps)-1)]
@@ -601,12 +695,13 @@ def label_session(
                 return 'human', 0.70, f'variable timing (max/avg ratio: {max_gap/avg_gap:.1f})'
     
     # 17. Multiple different endpoints explored (browsing pattern)
-    if len(unique_urls) >= 5 and session.request_count >= 5:
+    if human_plausible and len(unique_urls) >= 5 and session.request_count >= 5:
         return 'human', 0.65, f'exploring {len(unique_urls)} different endpoints'
     
     # 18. Has referer chain (natural navigation)
     has_referer = sum(1 for e in entries if e.referer not in ('-', '', 'none'))
-    if has_referer > len(entries) * 0.5 and session.request_count >= 3:
+    if (human_plausible and has_referer > len(entries) * 0.5
+            and session.request_count >= 3):
         return 'human', 0.60, f'natural navigation with {has_referer} referrers'
     
     # 19. Behind Cloudflare with normal browser (likely real user)

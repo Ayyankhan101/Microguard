@@ -279,7 +279,7 @@ class TestDecisionPayload:
     def test_breakdown_explains_the_score(self, store):
         scorer = LiveScorer(store, block_threshold=0.85)
         result = scorer.score_request(
-            _make_entry(ip="10.5.5.5", url="/wp-admin/setup-config.php")
+            _make_entry(ip="10.5.5.5", url="/phpmyadmin/index.php")
         )
         assert result["label"] == "bot"
         assert result["heuristic_label"] == "bot"
