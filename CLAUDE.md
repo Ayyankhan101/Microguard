@@ -22,7 +22,8 @@ Bot Traffic Audit Tool powered by micrograd. Detects malicious bot traffic in AP
   `microguard/dashboard/static/`, which ships in the wheel
 - `docs/` — Diataxis documentation, indexed by `docs/README.md`
   (3 tutorials / 12 how-tos / 5 references / 4 explanations)
-- `tests/` — pytest tests (776 passing); `gui/src/**/*.test.*` — vitest (87 passing)
+- `tests/` — pytest tests (1172 passing, 2 skipped); `gui/src/**/*.test.*` — vitest
+  (144 passing)
 - `data/` — Model weights, sample logs
 
 ## Commands
@@ -44,7 +45,7 @@ python gui/scripts/capture_fixtures.py   # Recapture API fixtures after a shape 
   Python 3.10)
 - lint: ruff check .
 - test: pytest
-- coverage: pytest --cov=microguard --cov-report=term-missing (99.31%; CI
+- coverage: pytest --cov=microguard --cov-report=term-missing (100%; CI
   gates at 98% via --cov-fail-under, against `.coveragerc-matrix`, which
   omits only what that job cannot execute — see the CI-parity lanes)
 - frontend: cd gui && npx tsc -b && npm test
