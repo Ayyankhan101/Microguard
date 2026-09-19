@@ -107,6 +107,7 @@ class CheckHandler(BaseHTTPRequestHandler):
         ua = self.headers.get("User-Agent", "")
         method = self.headers.get("X-Original-Method", "GET")
         url = self.headers.get("X-Original-URI", "/")
+        referer = self.headers.get("Referer", "")
 
         entry = LogEntry(
             ip=ip,
@@ -115,7 +116,7 @@ class CheckHandler(BaseHTTPRequestHandler):
             url=url,
             status=0,
             size=0,
-            referer="",
+            referer=referer,
             user_agent=ua,
         )
 

@@ -119,6 +119,11 @@ class TestTrain:
         assert len(losses) == 3
         assert all(isinstance(loss, float) for loss in losses)
 
+    def test_check_not_degenerate_is_a_no_op_without_labels(self):
+        # No labels means nothing to be degenerate about — returns early rather
+        # than deciding a model is constant on an empty set.
+        BotDetector().check_not_degenerate([], [])
+
     def test_training_changes_the_parameters(self):
         random.seed(7)
         model = BotDetector()

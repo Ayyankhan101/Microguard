@@ -399,3 +399,28 @@ class TestActorRecordsAreCapped:
         _touch_actor(clean, "h", distinct_ips=1, ttl=3600)
 
         assert clean.ttl(ACTOR_INDEX_KEY) > 0
+
+
+class TestEvictionEdgeCases:
+    """The eviction helper never raises on the /fp path, and no-ops when there
+    is nothing to drop."""
+
+    def test_a_redis_error_is_swallowed_not_raised(self):
+        from unittest.mock import MagicMock
+
+        from microguard.live.fingerprint import _evict_surplus_actors
+        client = MagicMock()
+        client.zcard.side_effect = redis.RedisError("down")
+        # Must not raise — a failed eviction is a memory cost, not a 500.
+        _evict_surplus_actors(client)
+
+    def test_no_op_when_the_index_reports_over_cap_but_returns_no_members(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import microguard.live.fingerprint as fp
+        monkeypatch.setattr(fp, "MAX_TRACKED_ACTORS", 1)
+        client = MagicMock()
+        client.zcard.return_value = 5       # surplus > 0
+        client.zrange.return_value = []     # ...but nothing came back
+        fp._evict_surplus_actors(client)
+        client.pipeline.assert_not_called()  # returned before touching the pipe

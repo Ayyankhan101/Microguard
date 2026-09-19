@@ -10,7 +10,7 @@
     {
       "ip": "192.168.1.100",
       "score": 0.25,
-      "model_score": 0.7312214610498435,
+      "model_score": 0.7776012627912233,
       "heuristic_label": "human",
       "heuristic_confidence": 0.75,
       "heuristic_reason": "known browser, reasonable session (5 req, 34s)",
@@ -44,7 +44,7 @@
     {
       "ip": "10.0.0.50",
       "score": 0.95,
-      "model_score": 0.7073046071841398,
+      "model_score": 0.6909687867615123,
       "heuristic_label": "bot",
       "heuristic_confidence": 0.95,
       "heuristic_reason": "known bot/monitoring UA: python-requests/2.28.0",

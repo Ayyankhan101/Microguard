@@ -15,6 +15,29 @@ within hours, for free, and solves the half that is already solved.
 Real human sessions need real humans. The server is the easy part; **sharing
 the link is the step that produces the data.**
 
+## The fast, free path: a tunnel session
+
+Before renting a server, run [`scripts/collect-session.sh`](../scripts/collect-session.sh)
+— it does the whole loop on your laptop behind a free HTTPS tunnel:
+
+```bash
+redis-server &                       # any local Redis
+bash scripts/collect-session.sh      # cloudflared (no account); --tunnel ngrok also works
+```
+
+It serves a small honest landing page with the fingerprint script, runs
+`microguard serve` observe-only (`--block-threshold 1.0`, nothing is blocked),
+opens a `https://…trycloudflare.com` tunnel, self-checks that the fingerprint
+route works, and prints a `?ref=<token>` invite link. Share that link with ~30
+people you know, let them browse for a minute, then press Ctrl-C — it prints the
+exact `microguard evaluate …` command to label what you collected.
+
+The HTTPS tunnel matters: the fingerprint script needs a secure context
+(`SubtleCrypto` is HTTPS/localhost only), so a plain-HTTP LAN link would collect
+visits that can never be labeled human. Keep the link to people you know — a
+public link gets crawled, and a JS-running crawler would pollute the human
+label. The EC2 path below is the internet-scale version of the same thing.
+
 ## Cost and constraints
 
 - `t3.micro` in `ap-southeast-2`, the project's assigned Region. Regional

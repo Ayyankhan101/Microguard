@@ -116,6 +116,15 @@ requests over 1.5ms extrapolates to roughly 200,000 req/min — a real visitor
 blocked by arithmetic. Any rate heuristic shared between the two paths needs
 checking against microsecond timestamps, not log-file granularity.
 
+**Both paths read the `Referer`.** The [benchmark](results/2026-09-benchmark.md)
+originally found the live path building every `LogEntry` with `referer=""` — the
+check server, the ASGI and the WSGI middleware all dropped the forwarded header,
+so rule 11 ("no referrer on all requests") fired on every 20-plus-request live
+session and the human referer rule (rule 21) could never fire live. That is
+fixed: all three read the real referer (the check server needs nginx to forward
+it with `proxy_set_header Referer $http_referer;`), so `scan` and `serve` now
+score a session the same way.
+
 Rule 10's floor also makes **rule 16** mostly unreachable. A session of more than
 20 requests spanning 1 to 5 seconds always exceeds 50 req/min, so rule 10 claims
 it first at 0.75. Rule 16 only fires when the burst is shorter than

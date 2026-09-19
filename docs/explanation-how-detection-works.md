@@ -136,10 +136,24 @@ session, so it can afford to flag more.
 Live blocking turns the number into a 403 for someone trying to use your site,
 so it demands more agreement. At 0.85 only the 0.90–0.95 rules clear the bar
 unaided — known bot UA, scanner paths, attack tools, uniform timing,
-HTTP/1.0-only. Everything weaker, including "high request rate" at 0.75 and "all
-requests to one endpoint" at 0.80, needs the model to agree. Those weaker rules
-also describe a polling client and a single-endpoint app, which is exactly why
-they do not get to block alone.
+HTTP/1.0-only, and credential/API-key brute-force. Everything weaker, including
+"high request rate" at 0.75 and "all requests to one endpoint" at 0.80, needs
+the model to agree. Those weaker rules also describe a polling client and a
+single-endpoint app, which is exactly why they do not get to block alone.
+
+The [benchmark](results/2026-09-benchmark.md) measured what this costs. Because
+the model is a near-constant ≈ 0.6 on the live path (it does not "agree" with
+anything in particular), the weaker rules never get lifted over 0.85 — so the
+blend at 0.85 catches fewer bots than the rule labeler alone. The one rule that
+was clearly on the wrong side of the line was credential/API-key brute-force,
+which is an unambiguous attack; it has been promoted to 0.90 so it now blocks
+live. The rest of the gap is deliberate: the medium rules that stay below the
+bar (high request rate, all-requests-to-one-endpoint, extremely high request
+count) also describe polling clients and busy shoppers, and lowering the global
+threshold to catch them re-introduces the false positives on real high-volume
+humans that the volume-rule fix removed. If you trust your own rule set on your
+own traffic you can lower the threshold anyway — see
+[tune blocking](howto-tune-blocking.md).
 
 The strict `>` on the live path matters at the edges. At threshold 0.5 the
 neutral verdict — "no strong signals either way", human at 0.50 — produces
@@ -176,10 +190,20 @@ Being explicit, because the number this produces is only as good as its inputs:
   [training data](explanation-training-data.md).
 - **Sessions key on IP by default.** Shared NAT merges many people into one
   session; a rotating residential proxy pool splits one bot into many, each too
-  short to accumulate a pattern.
-- **No evidence against sophisticated bots.** The evaluation sets contain real
-  attack traffic and synthesized evasion, not an adversary adapting to this
-  specific detector.
+  short to accumulate a pattern. The [benchmark](results/2026-09-benchmark.md)
+  confirms this is the real blind spot: a distributed browser farm (one profile
+  across ten IPs, low volume each) evades the rules entirely.
+- **Volume rules still lean on request count.** The volume rules now count
+  page-like requests, not embedded assets, so a browser loading rich pages is no
+  longer read as a scraper — on real e-commerce traffic (Zanbil) this cut the
+  `microguard scan` human false-positive rate from 57% to 15%. The residual
+  cases are genuinely high-volume sessions (100+ non-asset requests), which
+  count alone cannot separate from a scraper.
+- **Sophisticated bots: now measured, not assumed.** The
+  [evasion-ladder benchmark](results/2026-09-benchmark.md) drives the same bots
+  up to a real headless-browser farm. The rules hold against UA spoofing and
+  human pacing but are blind to the distributed low-volume case, and the shipped
+  0.85 blend catches far less than the rules alone.
 
 Run it in observe-only mode against your own traffic before you let it block
 anything. [Tuning blocking](howto-tune-blocking.md) covers how.

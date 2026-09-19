@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 340" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13">
+<text x="60" y="22" font-size="15" font-weight="600" fill="currentColor">Per-prediction time (µs)</text>
+<line x1="60" y1="290.0" x2="490" y2="290.0" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="52" y="294.0" text-anchor="end" fill="currentColor" fill-opacity="0.7">0.0</text>
+<line x1="60" y1="165.0" x2="490" y2="165.0" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="52" y="169.0" text-anchor="end" fill="currentColor" fill-opacity="0.7">3134.1</text>
+<line x1="60" y1="40.0" x2="490" y2="40.0" stroke="currentColor" stroke-opacity="0.12"/>
+<text x="52" y="44.0" text-anchor="end" fill="currentColor" fill-opacity="0.7">6268.2</text>
+<rect x="113.8" y="279.3" width="96.8" height="10.7" fill="#ef4444" rx="2"/>
+<rect x="221.2" y="287.9" width="96.8" height="2.1" fill="#f59e0b" rx="2"/>
+<rect x="328.8" y="40.0" width="96.8" height="250.0" fill="#38bdf8" rx="2"/>
+<text x="275.0" y="310" text-anchor="middle" fill="currentColor" fill-opacity="0.8">one predict</text>
+<rect x="506" y="35" width="12" height="12" rx="2" fill="#ef4444"/>
+<text x="524" y="45" fill="currentColor">micrograd</text>
+<rect x="506" y="57" width="12" height="12" rx="2" fill="#f59e0b"/>
+<text x="524" y="67" fill="currentColor">sklearn logreg</text>
+<rect x="506" y="79" width="12" height="12" rx="2" fill="#38bdf8"/>
+<text x="524" y="89" fill="currentColor">sklearn RF</text>
+<text x="60" y="334" fill="currentColor" fill-opacity="0.55">microseconds</text>
+</svg>

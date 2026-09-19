@@ -114,6 +114,7 @@ location = /_microguard_check {
     proxy_set_header X-Original-Method $request_method;
     proxy_set_header X-Real-IP         $remote_addr;
     proxy_set_header User-Agent        $http_user_agent;
+    proxy_set_header Referer           $http_referer;
 
     # Drop any client-supplied X-Forwarded-For. Sessions are keyed on this IP,
     # so a spoofable value lets a bot get a fresh session per request and never

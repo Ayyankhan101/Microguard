@@ -427,6 +427,38 @@ class TestVolumeAndRate:
         assert confidence == 0.85
         assert 'extremely high request count' in reason
 
+    def test_asset_heavy_human_is_not_a_high_count_bot(self, make_entry, make_session):
+        """A browser loading rich pages fires many image/CSS subrequests.
+
+        140 requests, but only 10 are pages (the rest are /image/... and
+        /static/... assets a browser fetches per page). The volume rules count
+        page-like requests, so this real-shopper shape must not be a bot -- the
+        failure the Zanbil benchmark surfaced (57% of real shoppers flagged).
+        """
+        def url(i):
+            return f"/product/{i // 14}" if i % 14 == 0 else f"/image/{i}/thumb.jpg"
+
+        session = _session(make_entry, make_session, count=140, ua=BROWSER_UA,
+                           url=url, referer="https://example.com/")
+
+        label, _confidence, reason = label_session(session)
+
+        assert 'extremely high request count' not in reason
+        assert 'high request rate' not in reason
+        assert label != 'bot'
+
+    def test_page_scraper_past_100_is_still_caught(self, make_entry, make_session):
+        """The fix must not let a real scraper through: 101 distinct pages,
+        none of them assets, still trips the count rule."""
+        session = _session(make_entry, make_session, count=101,
+                           url=lambda i: f"/product/{i}")
+
+        label, confidence, reason = label_session(session)
+
+        assert label == 'bot'
+        assert confidence == 0.85
+        assert 'extremely high request count' in reason
+
     def test_every_request_to_one_endpoint(self, make_entry, make_session):
         session = _session(make_entry, make_session, count=12, url="/api/items")
 
@@ -538,7 +570,7 @@ class TestAPIKeyPatterns:
         label, confidence, reason = label_session(session)
 
         assert label == 'bot'
-        assert confidence == 0.75
+        assert confidence == 0.90
         assert 'API key parameter scanning' in reason
 
     def test_credential_brute_force(self, make_entry, make_session):
@@ -610,7 +642,7 @@ class TestWeakBotSignals:
 
         assert label == 'bot'
         assert confidence == 0.65
-        assert 'requests in' in reason
+        assert 'pages in' in reason
 
     def test_night_time_volume(self, make_entry, make_session):
         night = BASE_TIME.replace(hour=3)

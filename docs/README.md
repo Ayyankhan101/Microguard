@@ -64,6 +64,19 @@ Understanding-oriented. Why it works this way, and what it costs.
 - [Where the labels come from](explanation-training-data.md) — an honest account of the training data
 - [Why the dashboard is built this way](explanation-dashboard-design.md) — recording as a tee, not a dependency
 
+## Results
+
+Evidence-oriented. What it actually caught, measured against baselines.
+
+- [The real-world benchmark](results/2026-09-benchmark.md) — microguard vs a UA
+  blocklist, a rate limit, a path blocklist, and CrowdSec, on the same bots at
+  rising evasion levels and on real public logs. Rules fixed in advance in
+  [`benchmarks/PREREGISTRATION.md`](../benchmarks/PREREGISTRATION.md).
+- [A realistic model, trained on real human traffic](results/2026-09-realistic-model.md)
+  — retraining the micrograd model on real human shopper sessions took it from
+  ROC-AUC 0.34 to 0.97 on held-out real traffic, and made the dataset-integrity
+  leakage guards pass.
+
 ## Reading paths
 
 **"I want to block bots on my site."**

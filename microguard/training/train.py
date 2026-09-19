@@ -467,13 +467,27 @@ def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 
     provenance = None
     data_source = "synthetic"
 
-    # Priority 0: real bot-training data — real ground-truth-labeled attack
-    # traffic (organization-x) + real Harvard human sessions, with a
-    # capped synthetic top-up for underrepresented attack categories. Built
-    # by `microguard.training.build_real_dataset`. Preferred over Harvard
-    # alone because its bot class is real, not synthetic.
+    # Priority -1: realistic data — REAL human shoppers AND real bots from the
+    # same site (Zanbil) plus organization-x attacks. Built by
+    # `microguard.training.build_realistic_dataset`. Preferred over everything
+    # else because it is the first dataset whose *human* class is real sessions
+    # extracted the same way as the bots, which is what removes the source-
+    # fingerprint leak the older sets carry. See docs/results/2026-09-realistic-model.md.
+    realistic_path = os.path.join(data_dir, 'realistic_training_data.json')
     real_bot_path = os.path.join(data_dir, 'real_bot_training_data.json')
-    if os.path.exists(real_bot_path):
+    if os.path.exists(realistic_path):
+        data_source = "realistic"
+        print(f"📂 Loading realistic training data from: {realistic_path}")
+        with open(realistic_path, encoding='utf-8') as f:
+            data = json.load(f)
+        features = data['features']
+        labels = data['labels']
+        group_ids = data.get('group_ids')
+        provenance = data.get('provenance')
+        print(f"   Samples: {len(features)} (Human: {data.get('n_human', '?')}, Bot: {data.get('n_bot', '?')})")
+        print(f"   Source breakdown: {data.get('source_counts', {})}")
+
+    elif os.path.exists(real_bot_path):
         data_source = "real_bot_training_data"
         print(f"📂 Loading real bot-training data from: {real_bot_path}")
         with open(real_bot_path, encoding='utf-8') as f:
