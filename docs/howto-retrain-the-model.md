@@ -1,6 +1,6 @@
 # How to retrain the model
 
-Rebuild `data/model.json` from the training data, with a held-out evaluation set
+Rebuild `microguard/data/model.json` from the training data, with a held-out evaluation set
 so the accuracy number means something. By the end you will have a retrained
 model, its normalization file, a fresh holdout split, and a generalization
 number you can trust more than the training accuracy.
@@ -35,9 +35,9 @@ python -m microguard.training.train
    Samples: 2957
    Bot: 2157 | Human: 800
    Epochs: 100 | LR: 0.05
-   Normalization saved to: data/normalization.json
+   Normalization saved to: microguard/data/normalization.json
 
-💾 Model saved to: data/model.json
+💾 Model saved to: microguard/data/model.json
 
 📊 Final Evaluation:
    Accuracy: ...
@@ -49,7 +49,7 @@ python -m microguard.training.train
    ...
 ```
 
-Three files are written: `data/model.json`, `data/normalization.json`, and
+Three files are written: `microguard/data/model.json`, `microguard/data/normalization.json`, and
 `data/eval_holdout.json`.
 
 ## Check which dataset it used
@@ -104,7 +104,7 @@ python -c "
 import json
 from microguard.model import BotDetector
 
-d = BotDetector('data/model.json')
+d = BotDetector('microguard/data/model.json')
 data = json.load(open('data/adversarial_eval.json'))
 scores = d.predict_batch(data['features'])
 tp = sum(1 for s, y in zip(scores, data['labels']) if s > 0.5 and y > 0.5)
@@ -230,13 +230,13 @@ Check the model loads and both files are consistent:
 ```bash
 python -c "
 from microguard.model import BotDetector
-d = BotDetector('data/model.json')
+d = BotDetector('microguard/data/model.json')
 print('normalization loaded:', d.norm_mins is not None)
 print('score on a zero vector:', d.predict([0.0] * 19))
 "
 ```
 
-If `normalization loaded` is `False`, `data/normalization.json` is missing and
+If `normalization loaded` is `False`, `microguard/data/normalization.json` is missing and
 every score from this model is meaningless — see below.
 
 Then confirm end to end:
@@ -250,7 +250,7 @@ human.
 
 ## Troubleshooting
 
-**`no normalization.json beside data/model.json`** — the warning means
+**`no normalization.json beside microguard/data/model.json`** — the warning means
 `predict()` is receiving raw features that the network was trained to see scaled
 to 0–1. Nothing raises and scores stay in range; they just stop meaning anything.
 This exact condition once dropped held-out bot recall from 100% to 2.4% silently.

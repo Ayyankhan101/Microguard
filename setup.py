@@ -18,10 +18,22 @@ setup(
     description="CLI bot traffic audit tool powered by micrograd",
     author="Microguard",
     license="MIT",
-    packages=find_packages(),
+    # `tests` and `benchmarks` both carry __init__.py, so a bare
+    # find_packages() shipped them -- and their subpackages -- into every
+    # wheel, squatting two of the most generic top-level import names in
+    # Python on anyone who installed this. Neither is importable by a user of
+    # `microguard scan`.
+    packages=find_packages(exclude=["tests", "tests.*", "benchmarks", "benchmarks.*"]),
     # The built dashboard SPA ships inside the package, so `microguard
-    # dashboard` works from a plain pip install with no Node involved.
-    package_data={"microguard": ["dashboard/static/*", "dashboard/static/**/*"]},
+    # dashboard` works from a plain pip install with no Node involved. data/
+    # carries the trained model and its normalization ranges; without them a
+    # pip install resolves DEFAULT_MODEL_PATH to nothing and silently runs
+    # heuristics only.
+    package_data={"microguard": [
+        "data/*.json",
+        "dashboard/static/*",
+        "dashboard/static/**/*",
+    ]},
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=[

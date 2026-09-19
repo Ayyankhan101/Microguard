@@ -80,7 +80,7 @@ mostly filters to those.
 ## Use the model
 
 ```bash
-microguard scan /var/log/nginx/access.log --watch --model data/model.json
+microguard scan /var/log/nginx/access.log --watch --model microguard/data/model.json
 ```
 
 Unlike `scan`, watch mode does **not** load the model by default —

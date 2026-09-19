@@ -542,7 +542,11 @@ class TestDefaultDataDir:
 
         resolved = default_data_dir()
         assert os.path.basename(resolved) == 'data'
-        assert os.path.isfile(os.path.join(resolved, 'model.json'))
+        # The datasets prove it, not model.json: the shipped model moved
+        # into microguard/data/ so it ships in the wheel, while the
+        # training data this directory feeds main() stayed behind.
+        assert os.path.isfile(
+            os.path.join(resolved, 'realistic_training_data.json'))
 
 
 class TestActorSessionGrouping:
