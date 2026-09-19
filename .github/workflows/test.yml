@@ -54,6 +54,16 @@ jobs:
           --cov=microguard --cov-report=term-missing --cov-fail-under=98
           --cov-config=.coveragerc-matrix
 
+      - name: Run benchmark harness tests
+        # pyproject.toml sets testpaths = ["tests"], and every lane in this file
+        # passes an explicit path, so benchmarks/tests/ was collected by nothing:
+        # tests that pass, have always passed, and could never have failed a
+        # build. The harness is the evidence base for the published results, so
+        # it gets a gate like anything else. Not coverage-gated -- the harness
+        # is developer tooling, not shipped code, and it no longer ships in the
+        # wheel either (see setup.py).
+        run: python -m pytest benchmarks/tests -v --tb=short
+
       - name: Test CLI
         shell: bash
         run: |
@@ -213,6 +223,41 @@ jobs:
             echo "::error::API fixtures are stale - run 'python gui/scripts/capture_fixtures.py' and commit the result"
             exit 1
           fi
+
+  lint:
+    # ruff, vulture and shellcheck are all in CLAUDE.md's health stack, and no
+    # job ran any of them: five of the eight documented gates were enforced by
+    # CI and three by somebody remembering. The repo passes all three today, so
+    # this goes green on arrival -- the point is keeping it that way.
+    #
+    # One runner, like typecheck: lint gives the same answer on every OS.
+    name: lint (ruff, vulture, shellcheck)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Pinned for the same reason mypy is: a new release must not turn an
+          # unrelated PR red. Bump deliberately, in its own change.
+          pip install "ruff==0.16.3" "vulture==2.16"
+
+      - name: ruff
+        run: ruff check .
+
+      - name: vulture
+        run: vulture microguard microguard/vulture_whitelist.py
+
+      - name: shellcheck
+        # Preinstalled on ubuntu-latest runners.
+        run: shellcheck scripts/*.sh
 
   typecheck:
     # mypy is in the health stack and requirements-dev.txt, but no job ran it.

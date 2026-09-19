@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import os
+from importlib import resources
 
 # Import micrograd
 try:
@@ -26,9 +27,25 @@ except ImportError:  # pragma: no cover - install-time guard, needs micrograd ab
 # The trained model artifact. Defined here, next to BotDetector, because both
 # the batch CLI and the live scorer need it — a second copy in either one is how
 # the live path ended up looking for a file that never existed.
-DEFAULT_MODEL_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'data', 'model.json'
-)
+#
+# It lives INSIDE the package. It used to resolve to `<package>/../data/`, which
+# escapes the package root, and Python packaging only carries files that live
+# inside a package: `setup.py`'s package_data named `dashboard/static` and
+# nothing else, there is no MANIFEST.in, and the built SOURCES.txt had no
+# `data/` entry. So every `pip install microguard` shipped without a model,
+# resolved this path to nothing, and `live/scorer.py` logged "live scoring will
+# run on heuristics only" and carried on. The whole retraining effort reached
+# editable checkouts and nobody else.
+#
+# `online_update.py:default_feedback_dir` already documented the arrangement
+# this restores -- "data/ ships in the wheel and is read-only on a normal
+# install" -- which was the intended design all along, just never true.
+DEFAULT_MODEL_PATH = str(resources.files('microguard') / 'data' / 'model.json')
+
+# Where `microguard.training.train` writes a retrained baseline. Same directory,
+# because a retrained baseline IS the shipped artifact; the training DATASETS
+# stay in the repo's data/ and are not shipped.
+SHIPPED_MODEL_DIR = str(resources.files('microguard') / 'data')
 
 
 logger = logging.getLogger(__name__)

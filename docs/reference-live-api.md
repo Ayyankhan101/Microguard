@@ -460,7 +460,7 @@ LiveScorer(store, model_path=None, block_threshold=0.85,
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `store` | `SessionStateStore` | required | Where session history lives. |
-| `model_path` | str \| Path \| None | `None` | `None` resolves the packaged `data/model.json`. |
+| `model_path` | str \| Path \| None | `None` | `None` resolves the packaged `microguard/data/model.json`. |
 | `block_threshold` | float | `0.85` | Blocks when the score exceeds this. |
 | `session_ttl` | int | `1800` | Passed to the store on every append. |
 | `short_circuit_label` | str | `"automated-integration"` | Heuristic label that is never blocked. |

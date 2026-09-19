@@ -104,5 +104,5 @@ Reading it honestly:
 python -m benchmarks.public.zanbil split && python -m benchmarks.public.zanbil label
 python -m microguard.training.build_realistic_dataset   # -> data/realistic_training_data.json
 python -m benchmarks.model.realistic                    # the held-out table above
-python -m microguard.training.train                     # -> data/model.json (realistic)
+python -m microguard.training.train                     # -> microguard/data/model.json (realistic)
 ```

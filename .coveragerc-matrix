@@ -10,18 +10,11 @@
 # Redis service container. Between the two jobs, every line is still covered by
 # a gate. Local runs use pyproject.toml and measure everything.
 #
-# The MLflow surface used to be omitted here too, and that was a real gap: it
-# was not gated anywhere, because no job installs the mlflow extra. Fixed by
-# covering it instead of hiding it -- the wrappers in tracking.py and the
-# route in api_mlflow.py are thin delegations, testable with a mocked
-# _get_mlflow on any runner. Un-omitting them RAISED this number (98.71% ->
-# 99.08%) while making them gated, so there is no tradeoff to weigh.
-#
-# What genuinely cannot run here is ~30 statements that need mlflow or numpy
-# actually imported: tracking.py's `import mlflow`, BotDetectorPyFunc's
-# load_context, and train.py's MLflow run block. Adding a ~100MB dependency
-# to twelve matrix jobs to reach those is not worth it; they are exercised by
-# hand when the Databricks connection is used.
+# Watch the PRECISE number, not the rounded one:
+#     coverage report --rcfile=.coveragerc-matrix --precision=2
+# coverage.py rounds to the display precision before comparing against
+# --cov-fail-under, so 97.74% renders as "98%" and passes while sitting eight
+# uncovered statements from red.
 [run]
 source = microguard
 omit =

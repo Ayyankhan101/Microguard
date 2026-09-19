@@ -26,7 +26,7 @@ microguard scan data/sample_access.log
 | `logfile` | path | required | Log to analyze. `.gz` is decompressed transparently. |
 | `--format`, `-f` | `auto` \| `nginx` \| `json` | `auto` | Log format. `auto` reads up to 10 lines to decide. |
 | `--threshold`, `-t` | float | `0.7` | Blended score at or above which a session is labeled `bot`. |
-| `--model`, `-m` | path | `data/model.json` | Trained model. Missing or unreadable means heuristics only. |
+| `--model`, `-m` | path | `microguard/data/model.json` | Trained model. Missing or unreadable means heuristics only. |
 | `--output`, `-o` | `terminal` \| `json` \| `html` \| `nginx` \| `cloudflare` | `terminal` | Report format. |
 | `--output-file`, `-O` | path | stdout | Write the report to a file instead of stdout. |
 | `--timeout` | int | `30` | Session gap in minutes. A larger gap starts a new session for the same IP. |
@@ -218,7 +218,7 @@ Refuses rather than crashing when the data will not support it — fewer than
 `--min-examples` corrections, or more than 90% of them one class — and prints
 what would change the answer.
 
-**`data/model.json` is never written.** The retrained model goes beside the
+**`microguard/data/model.json` is never written.** The retrained model goes beside the
 corrections, and `microguard serve --deployment-id <id>` picks it up within
 about five seconds with no restart. Rolling back is deleting that one file.
 

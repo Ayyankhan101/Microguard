@@ -197,7 +197,7 @@ Trained on 1463 live per-request vectors from seeds [1, 2], levels ['L0', 'L1', 
 
 **What the marginal catches are.** The retrained model's 12 catches the rules miss are exactly the bots the ladder showed as the rules' blind spot: 2 at L4, 10 at L5-farm — the distributed farm and the L4 stragglers — recovered with 0 added human false positives. The no-UA ablation lands the same score, so it is behaviour, not the user agent, doing the work.
 
-**Read the 1.000 with the Zanbil result in hand.** A perfect AUC here is an *upper bound*, not a production number: the lab's humans are simulated and cleanly separable from bots in feature space, and sklearn logreg/RF hit the same 1.000, which says the *data* is separable, not that this model is special. On real human traffic that separation does not hold — `microguard scan` flags 57% of real Zanbil shoppers (B1 below). So Suite D shows the model *can* catch the farm behaviourally; it does not show a model that is safe to ship as a blocker. Replacing `data/model.json` stays out of scope.
+**Read the 1.000 with the Zanbil result in hand.** A perfect AUC here is an *upper bound*, not a production number: the lab's humans are simulated and cleanly separable from bots in feature space, and sklearn logreg/RF hit the same 1.000, which says the *data* is separable, not that this model is special. On real human traffic that separation does not hold — `microguard scan` flags 57% of real Zanbil shoppers (B1 below). So Suite D shows the model *can* catch the farm behaviourally; it does not show a model that is safe to ship as a blocker. Replacing `microguard/data/model.json` stays out of scope.
 
 **Leakage guard:** no single training feature separates the classes perfectly.
 

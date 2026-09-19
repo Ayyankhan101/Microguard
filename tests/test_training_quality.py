@@ -17,6 +17,12 @@ import pytest
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
+# The shipped model and its normalization ranges moved INSIDE the package so
+# they reach a pip install; the training datasets this module also reads stay
+# in the repo's data/ and are not shipped. Two directories, two purposes.
+MODEL_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), 'microguard', 'data')
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,7 +59,7 @@ def _load_holdout():
 
 
 def _load_normalization():
-    path = os.path.join(DATA_DIR, 'normalization.json')
+    path = os.path.join(MODEL_DIR, 'normalization.json')
     if not os.path.exists(path):
         pytest.skip("normalization.json not found")
     with open(path, encoding='utf-8') as f:
@@ -62,7 +68,7 @@ def _load_normalization():
 
 def _load_model():
     from microguard.model import BotDetector
-    path = os.path.join(DATA_DIR, 'model.json')
+    path = os.path.join(MODEL_DIR, 'model.json')
     if not os.path.exists(path):
         pytest.skip("model.json not found")
     return BotDetector(path)
@@ -152,7 +158,7 @@ class TestNormalization:
     """Validate normalization params are consistent with training data."""
 
     def test_file_exists(self):
-        path = os.path.join(DATA_DIR, 'normalization.json')
+        path = os.path.join(MODEL_DIR, 'normalization.json')
         assert os.path.exists(path), "normalization.json not found in data/"
 
     def test_has_mins_maxs(self):
@@ -245,7 +251,7 @@ class TestModelAccuracy:
     """
 
     def test_model_exists(self):
-        path = os.path.join(DATA_DIR, 'model.json')
+        path = os.path.join(MODEL_DIR, 'model.json')
         assert os.path.exists(path), "model.json not found in data/"
 
     def test_model_loads(self):
@@ -613,7 +619,7 @@ class TestModelLoadingIsComplete:
     def test_load_restores_normalization(self):
         from microguard.model import BotDetector
 
-        path = os.path.join(DATA_DIR, 'model.json')
+        path = os.path.join(MODEL_DIR, 'model.json')
         if not os.path.exists(path):
             pytest.skip("model.json not found")
         model = BotDetector()
@@ -624,7 +630,7 @@ class TestModelLoadingIsComplete:
     def test_both_load_paths_agree(self):
         from microguard.model import BotDetector
 
-        path = os.path.join(DATA_DIR, 'model.json')
+        path = os.path.join(MODEL_DIR, 'model.json')
         if not os.path.exists(path):
             pytest.skip("model.json not found")
         via_ctor = BotDetector(path)

@@ -128,7 +128,7 @@ and more than 30 requests before it fires at all, and only at 0.60 confidence.
 ## Normalization
 
 The raw vector is **not** what the network sees. `BotDetector.predict()` applies
-min-max scaling from `data/normalization.json`, per feature:
+min-max scaling from `microguard/data/normalization.json`, per feature:
 
 ```
 normalized_i = (raw_i - mins[i]) / (maxs[i] - mins[i])      when maxs[i] > mins[i]

@@ -291,7 +291,8 @@ def _model_section(track: dict) -> str:
         "which says the *data* is separable, not that this model is special. On real human "
         "traffic that separation does not hold — `microguard scan` flags 57% of real Zanbil "
         "shoppers (B1 below). So Suite D shows the model *can* catch the farm behaviourally; "
-        "it does not show a model that is safe to ship as a blocker. Replacing `data/model.json` "
+        "it does not show a model that is safe to ship as a blocker. Replacing "
+        "`microguard/data/model.json` "
         "stays out of scope.\n")
     if track.get("leakage"):
         cols = ", ".join(o["feature"] for o in track["leakage"])
