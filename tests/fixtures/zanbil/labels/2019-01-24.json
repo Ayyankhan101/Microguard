@@ -1,0 +1,350 @@
+{
+  "198.51.100.1": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.10": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 19,
+    "verified": null
+  },
+  "198.51.100.11": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.12": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.13": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 32,
+    "verified": null
+  },
+  "198.51.100.14": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.15": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 30,
+    "verified": null
+  },
+  "198.51.100.16": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.17": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.18": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 22,
+    "verified": null
+  },
+  "198.51.100.19": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.2": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.20": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.21": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.22": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.3": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.4": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 14,
+    "verified": null
+  },
+  "198.51.100.5": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.6": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.7": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "198.51.100.8": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 36,
+    "verified": null
+  },
+  "198.51.100.9": {
+    "claimed": [],
+    "label": "human_proxy",
+    "probe": false,
+    "requests": 40,
+    "verified": null
+  },
+  "203.0.113.1": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.10": {
+    "claimed": [],
+    "label": "probe_bot",
+    "probe": true,
+    "requests": 3,
+    "verified": null
+  },
+  "203.0.113.11": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 2,
+    "verified": "baidu"
+  },
+  "203.0.113.12": {
+    "claimed": [
+      "google"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 2,
+    "verified": "google"
+  },
+  "203.0.113.13": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.14": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 1,
+    "verified": "baidu"
+  },
+  "203.0.113.15": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "unverified_crawler",
+    "probe": false,
+    "requests": 1,
+    "verified": null
+  },
+  "203.0.113.16": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "unverified_crawler",
+    "probe": false,
+    "requests": 1,
+    "verified": null
+  },
+  "203.0.113.17": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "unverified_crawler",
+    "probe": false,
+    "requests": 1,
+    "verified": null
+  },
+  "203.0.113.18": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 2,
+    "verified": "bing"
+  },
+  "203.0.113.19": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 3,
+    "verified": "bing"
+  },
+  "203.0.113.2": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.20": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.21": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "unverified_crawler",
+    "probe": false,
+    "requests": 1,
+    "verified": null
+  },
+  "203.0.113.22": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.3": {
+    "claimed": [],
+    "label": "probe_bot",
+    "probe": true,
+    "requests": 3,
+    "verified": null
+  },
+  "203.0.113.4": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.5": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 11,
+    "verified": "bing"
+  },
+  "203.0.113.6": {
+    "claimed": [
+      "bing"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 40,
+    "verified": "bing"
+  },
+  "203.0.113.7": {
+    "claimed": [
+      "google"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 2,
+    "verified": "google"
+  },
+  "203.0.113.8": {
+    "claimed": [
+      "baidu"
+    ],
+    "label": "unverified_crawler",
+    "probe": false,
+    "requests": 2,
+    "verified": null
+  },
+  "203.0.113.9": {
+    "claimed": [
+      "yandex"
+    ],
+    "label": "verified_crawler",
+    "probe": false,
+    "requests": 2,
+    "verified": "yandex"
+  }
+}

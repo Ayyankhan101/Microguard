@@ -10,6 +10,13 @@ build/
 .coverage
 htmlcov/
 *.log
+# ...except the committed test fixtures. tests/fixtures/zanbil/days/*.log is
+# INPUT to the leakage guards in tests/test_dataset_integrity.py, which build a
+# dataset from it at test time. Without this negation `*.log` silently drops
+# them from `git add`, the labels commit without the logs they describe, and
+# every matrix job fails on a fixture that works perfectly on the machine that
+# generated it.
+!tests/fixtures/**/*.log
 data/report.html
 data/report_v2.html
 data/probe_report.html
