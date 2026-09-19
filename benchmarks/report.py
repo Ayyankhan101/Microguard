@@ -508,6 +508,27 @@ DEVIATIONS = """## Deviations from the pre-registration
    IP is mapped 1:1 to a public one for the CrowdSec replay only, and back
    afterwards; microguard scores the real lab IPs. Zanbil's real public IPs are
    untouched.
+3. **`data/model.json` was replaced**, against the pre-registration's closing
+   line that "replacing `data/model.json` is out of scope whatever the result"
+   (commit `072616a`). The result was good, so the constraint was dropped. This
+   was not recorded until 2026-09-20.
+4. **Zanbil became the model's training set while still evaluating it.** Suite
+   B promises Zanbil is used "only for rule/baseline/offline-scan detectors,
+   never to evaluate the model", but `benchmarks/detectors.py:324-326` shows the
+   offline-scan detector *is* the model, and
+   `microguard/training/build_realistic_dataset.py` now draws its training rows
+   from Zanbil. So `mg_scan` in every Suite B table above evaluates the model on
+   its own training data. Also unrecorded until 2026-09-20.
+
+Suite D's leakage guard is weaker than it reads, which is not a deviation but
+belongs here. It tests whether a feature separates the classes *perfectly*.
+`ua_category` does not, so it passes -- while carrying a single-feature ROC-AUC
+of 0.8871 on the held-out days, because the class labels are themselves a
+user-agent substring test (`benchmarks/public/zanbil.py:75`, `CRAWLER_TOKEN`).
+A perfect-separation test cannot detect a label defined by a feature. Measured
+on the same rows, the one-line rule `ua_category == 1` reaches 78.2% recall
+(255/326) at 0.00% human false positives (0/1139), against the retrained
+model's 69.9% (228/326).
 """
 
 

@@ -20,8 +20,19 @@
   model had learned to identify that *file*, not the human class, which is why
   the benchmark measured it at ROC-AUC **0.34** on real traffic — below 0.5,
   ranking real humans above real bots. Training on same-site humans and bots
-  (Zanbil human-proxy sessions plus real forensic attacks) takes it to **0.97**.
-  Written up in `docs/results/2026-09-realistic-model.md`.
+  (Zanbil human-proxy sessions plus real forensic attacks) fixes that specific
+  leak, and the dataset-integrity guards pass.
+
+  **The 0.97 originally claimed here is retracted.** `train.py` ignores the
+  `days` the builder records and splits groups at random, so the shipped model
+  trained on both days the result reports as held out — measured, it scores
+  0.9872 on them. The 0.97 belonged to a separate model built inside
+  `benchmarks/model/realistic.py` and never saved. Separately, the class labels
+  are a user-agent substring test (`zanbil.py:75`), which a one-line
+  `ua_category == 1` check exploits better than the network does: 78.2% recall
+  at zero human false positives against the model's 69.9%, on the same rows. A
+  corrected number is pending the day-based holdout and a recorded seed. See
+  `docs/results/2026-09-realistic-model.md`.
 - **A one-command real-human collection session behind an HTTPS tunnel**
   (`scripts/collect-session.sh`, `scripts/collect/nginx.conf`), documented in
   `docs/howto-collect-real-sessions.md`. Simulated humans were the benchmark's
