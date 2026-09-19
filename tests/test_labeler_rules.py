@@ -608,8 +608,22 @@ class TestAPIKeyPatterns:
         assert API_KEY_SCAN_RE.search("/api?key=test")
         assert API_KEY_SCAN_RE.search("/api?token=abc")
         assert API_KEY_SCAN_RE.search("/api?api_key=xyz")
-        assert API_KEY_SCAN_RE.search("/oauth2/token")
+        # A credential in a later parameter counts too.
+        assert API_KEY_SCAN_RE.search("/api?page=2&access_token=xyz")
         assert not API_KEY_SCAN_RE.search("/products")
+
+    def test_auth_shaped_paths_are_not_credential_scanning(self):
+        """Navigation is not an attack.
+
+        These all matched before, so a browser loading one of them once hit
+        1/1 = 100% of the session and rule 11 blocked it at 0.90. Only a
+        credential in the query string is the signal now; brute force against
+        these endpoints is caught by the two repetition branches instead.
+        """
+        for path in ("/signup", "/register", "/forgot-password",
+                     "/oauth2/token", "/oauth/callback?code=abc",
+                     "/authenticate", "/api/v1/auth/session", "/api/v1/login"):
+            assert not API_KEY_SCAN_RE.search(path), path
 
 
 # ===== Rules 15-17: weaker bot signals =====

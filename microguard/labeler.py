@@ -5,6 +5,7 @@ Labels are noisy but good enough for pre-training. Retrain on real data later.
 """
 
 import re
+from typing import NamedTuple
 
 from .features import BROWSER_UA_RE, Session, SessionLike
 from .parser import LogEntry
@@ -47,17 +48,35 @@ CLOUDFLARE_PROTECTED_ENDPOINTS = [
 ]
 
 # --- API key / credential scanning patterns ---
-# Bot patterns targeting authentication endpoints
+# Credential-bearing query parameters, and nothing else.
+#
+# Bare auth-ish PATHS used to live here too -- /signup, /register,
+# /forgot-password, /token, /authenticate, /oauth2/, /api/.*auth -- and that
+# conflated "this URL mentions authentication" with "this request is an
+# attack". A browser loading /signup once matched at 1/1 = 100%, cleared the
+# >0.5 ratio in _check_api_key_patterns, and after rule 11 was promoted from
+# 0.75 to 0.90 it BLOCKED at the 0.85 live threshold: the first page of every
+# signup funnel, every OAuth callback, every password reset.
+#
+# A credential in the query string is the actual signal. Brute force against
+# an auth *endpoint* is still caught, by the two branches below that require
+# repetition over time (BRUTE_FORCE_ENDPOINTS), which is what distinguishes an
+# attack from a visit.
+#
+# Matched on [?&] rather than a bare ? so a credential in the second or later
+# parameter counts -- `/x?page=2&token=...` was previously invisible here.
 API_KEY_SCAN_PATTERNS = [
-    r'\?key=', r'\?token=', r'\?api_key=', r'\?apikey=',
-    r'\?access_token=', r'\?auth=', r'\?password=', r'\?pass=',
-    r'\?secret=', r'\?credential=', r'\?jwt=', r'\?bearer=',
-    r'/api/.*key', r'/api/.*token', r'/api/.*auth', r'/api/.*login',
-    r'/oauth2?/', r'/jwt/', r'/token', r'/authenticate',
-    r'/signup', r'/register', r'/forgot-password',
-    r'/_debug',
+    r'[?&]key=', r'[?&]token=', r'[?&]api_key=', r'[?&]apikey=',
+    r'[?&]access_token=', r'[?&]auth=', r'[?&]password=', r'[?&]pass=',
+    r'[?&]secret=', r'[?&]credential=', r'[?&]jwt=', r'[?&]bearer=',
 ]
 API_KEY_SCAN_RE = re.compile('|'.join(API_KEY_SCAN_PATTERNS), re.IGNORECASE)
+
+# A ratio test over a tiny session says nothing: one request carrying a token
+# is 100% of a one-request session. Rule 11 blocks at 0.90, so it needs enough
+# requests for "most of this session is credential traffic" to be a finding
+# rather than an artifact of the denominator.
+MIN_CREDENTIAL_SCAN_REQUESTS = 5
 
 # --- Known botnet / attack signatures ---
 # Mirai and IoT botnet scanning patterns
@@ -194,6 +213,49 @@ def _check_cloudflare_signals(session: SessionLike) -> tuple[bool, str]:
     return False, ''
 
 
+class _Volume(NamedTuple):
+    """Everything the volume rules are allowed to count, computed once.
+
+    Five rules ask "how much traffic was this?" and each used to derive its own
+    answer from raw fields. That is how commit b2edd14 wired page-like counting
+    into rules 5, 7 and 12 and missed rule 13, which kept counting a browser's
+    image subrequests and so kept labelling a 3am shopper a bot -- the exact
+    false positive that commit set out to remove. One source, computed here, so
+    a rule cannot reach for the raw field by accident.
+
+        entries ──┬─> requests      raw total, embedded assets included
+                  ├─> pages         non-asset requests: what "volume" means
+                  ├─> night_pages   pages timestamped 02:00-05:59
+                  └─> duration      seconds, first request to last
+
+    `pages` can be 0 for a session that is entirely assets, so any ratio over
+    it must guard against that. `requests` is never 0 (an empty session
+    returns before this is built).
+    """
+
+    requests: int
+    pages: int
+    night_pages: int
+    duration: float
+
+
+def _volume_of(
+    entries: list[LogEntry], urls: list[str], duration: float
+) -> _Volume:
+    """Count a session's traffic once, for every volume rule to share."""
+    page_flags = [not STATIC_ASSET_RE.search(u) for u in urls]
+    return _Volume(
+        requests=len(entries),
+        pages=sum(page_flags),
+        night_pages=sum(
+            1
+            for entry, is_page in zip(entries, page_flags)
+            if is_page and 2 <= entry.timestamp.hour < 6
+        ),
+        duration=duration,
+    )
+
+
 def _check_api_key_patterns(session: SessionLike) -> tuple[bool, str]:
     """Check for API key scanning or credential brute-force patterns.
     
@@ -203,9 +265,12 @@ def _check_api_key_patterns(session: SessionLike) -> tuple[bool, str]:
     entries = session.requests
     urls = [e.url for e in entries]
     
-    # API key parameter scanning
+    # API key parameter scanning. The request floor is load-bearing, not
+    # defensive: without it a single request carrying a credential param is
+    # 1/1 = 100% and trips a rule that blocks at 0.90.
     key_param_hits = sum(1 for url in urls if API_KEY_SCAN_RE.search(url))
-    if key_param_hits > 0 and key_param_hits / len(entries) > 0.5:
+    if (len(entries) >= MIN_CREDENTIAL_SCAN_REQUESTS
+            and key_param_hits / len(entries) > 0.5):
         return True, f'API key parameter scanning ({key_param_hits}/{len(entries)} requests)'
     
     # Credential brute-force (rapid attempts to auth endpoints)
@@ -368,14 +433,8 @@ def label_session(
     ua = session.user_agent.lower()
     urls = [e.url.split('?')[0] for e in entries]
 
-    # Requests that are not embedded static assets. The volume rules below
-    # count these, not the raw request total: a real browser loading one rich
-    # page fires dozens of image/CSS/JS subrequests, so raw count reads a
-    # normal visitor as a high-volume scraper. Measured on real e-commerce
-    # traffic (Zanbil), the raw-count rule flagged 57% of genuine human
-    # shoppers. A page/endpoint scraper still hits many non-assets and is still
-    # caught. See docs/results/2026-09-benchmark.md.
-    page_like_count = sum(1 for u in urls if not STATIC_ASSET_RE.search(u))
+    # Every volume rule below reads from this and nothing else. See _Volume.
+    volume = _volume_of(entries, urls, session.duration)
 
     # === KNOWN AUTOMATED INTEGRATIONS (not a threat signal) ===
 
@@ -451,8 +510,8 @@ def label_session(
     # === MEDIUM CONFIDENCE BOT SIGNALS (0.70-0.89) ===
     
     # 5. Very high request rate (>100 non-asset requests in session)
-    if page_like_count > 100:
-        return 'bot', 0.85, f'extremely high request count: {page_like_count} pages'
+    if volume.pages > 100:
+        return 'bot', 0.85, f'extremely high request count: {volume.pages} pages'
     
     # 6. All requests to same endpoint (scraper pattern) — not for
     # single-endpoint APIs (GraphQL/SOAP/RPC), where this is normal.
@@ -470,8 +529,8 @@ def label_session(
     # but the live path uses time.time() and trips it on every page load.
     # Rate over non-asset requests: a browser firing image subrequests is not
     # a high request rate in the sense this rule means.
-    if session.duration >= MIN_RATE_WINDOW_S and page_like_count >= MIN_RATE_REQUESTS:
-        rate = page_like_count / (session.duration / 60.0)
+    if volume.duration >= MIN_RATE_WINDOW_S and volume.pages >= MIN_RATE_REQUESTS:
+        rate = volume.pages / (volume.duration / 60.0)
         if rate > 50:
             return 'bot', 0.75, f'high request rate: {rate:.1f} pages/min'
     
@@ -512,13 +571,17 @@ def label_session(
         return 'bot', 0.60, f'unknown user-agent: {session.user_agent[:50]}'
     
     # 12. Very short session with many non-asset requests (< 5 seconds, > 20)
-    if session.duration < 5.0 and page_like_count > 20:
-        return 'bot', 0.65, f'{page_like_count} pages in {session.duration:.1f}s'
+    if volume.duration < 5.0 and volume.pages > 20:
+        return 'bot', 0.65, f'{volume.pages} pages in {volume.duration:.1f}s'
     
-    # 13. Night-time activity (2am-6am) with high volume
-    night_count = sum(1 for e in entries if 2 <= e.timestamp.hour < 6)
-    if night_count / len(entries) > 0.5 and session.request_count > 30:
-        return 'bot', 0.60, f'mostly night-time activity ({night_count}/{len(entries)} requests)'
+    # 13. Night-time activity (2am-6am) with high volume. Counts pages, not
+    # raw requests, for the same reason as rules 5, 7 and 12: a shopper who
+    # loads one rich page at 3am fires dozens of image subrequests, and
+    # counting those made this rule report a real human as a bot at 0.60.
+    # `volume.pages` is 0 for an all-asset session, hence the guard.
+    if (volume.pages > 30
+            and volume.night_pages / volume.pages > 0.5):
+        return 'bot', 0.60, f'mostly night-time activity ({volume.night_pages}/{volume.pages} pages)'
     
     # === HUMAN SIGNALS (0.55-0.75) ===
     
