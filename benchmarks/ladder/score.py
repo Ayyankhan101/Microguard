@@ -29,6 +29,7 @@ from benchmarks.detectors import (
     ua_regex,
 )
 from benchmarks.metrics import DetectionDelay, Rate, clearly_above, roc_auc
+from benchmarks.provenance import stamp
 from benchmarks.public.crowdsec import crowdsec_flagged_ips
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -215,6 +216,7 @@ def _render(cells, seeds_seen, per_seed_recall, model_spread) -> dict:
 
 def main() -> None:
     result = score()
+    result["provenance"] = stamp()
     OUT.write_text(json.dumps(result, indent=2), encoding="utf-8")
     scored_cells = len([k for k in result["cells"] if "/humans" not in k])
     print(f"scored {scored_cells} bot cells across configs {list(result['seeds'])}")
