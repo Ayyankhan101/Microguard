@@ -479,12 +479,15 @@ comes from the rules under test.
   Zanbil, real people whose human label is a checkout-plus-assets proxy). The
   live-EC2 runbook in `docs/howto-evaluate-on-live-traffic.md` is the way to get
   real invited humans; that was out of scope for this pass.
-- **The live check server ignores the forwarded `Referer`** (`server.py` builds
-  every request with `referer=""`). So referer-based rules and features are
-  inert on the live path, and the "no referrer on all requests" rule fires on
-  any 20-plus-request session regardless of what the client actually sent. This
-  inflates live recall on high-volume bots and is called out where it matters.
-  The offline `microguard scan` does read the referer.
+- **The live check server ignored the forwarded `Referer` while these numbers
+  were measured** (`server.py` built every request with `referer=""`). So
+  referer-based rules and features were inert on the live path for this run, and
+  the "no referrer on all requests" rule fired on any 20-plus-request session
+  regardless of what the client actually sent. That inflates live recall on
+  high-volume bots below, and is called out where it matters. The offline
+  `microguard scan` did read the referer. This defect has since been fixed --
+  see [Fixes applied since this benchmark](#fixes-applied-since-this-benchmark).
+  The numbers here are deliberately left as they were measured.
 """
 
 DEVIATIONS = """## Deviations from the pre-registration

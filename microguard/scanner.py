@@ -141,15 +141,17 @@ def probe_url(
     result = ProbeResult(url=url)
     
     try:
-        # Measure timing
-        t_start = time.time()
+        # Measure timing. perf_counter, not time(): every value below is an
+        # elapsed span, and time() has a ~15.6ms resolution on Windows, so a
+        # loopback probe finishing inside one tick reports exactly 0.0.
+        t_start = time.perf_counter()
         try:
             response = opener.open(req, timeout=timeout)
-            t_connected = time.time()
+            t_connected = time.perf_counter()
             
             # Read response body
             body = response.read(1024 * 1024)  # Max 1MB
-            t_complete = time.time()
+            t_complete = time.perf_counter()
             
             result.status_code = response.status
             result.headers = dict(response.headers)
@@ -162,7 +164,7 @@ def probe_url(
                 'transfer': t_complete - t_connected,
             }
         except urllib.error.HTTPError as e:
-            t_error = time.time()
+            t_error = time.perf_counter()
             result.status_code = e.code
             result.headers = dict(e.headers) if e.headers else {}
             result.timing = {
@@ -174,11 +176,11 @@ def probe_url(
             }
         except urllib.error.URLError as e:
             result.error = str(e.reason)
-            result.timing = {'total': time.time() - t_start}
+            result.timing = {'total': time.perf_counter() - t_start}
     
     except Exception as e:  # noqa: BLE001 — probe result surfaces any failure via result.error
         result.error = str(e)
-        result.timing = {'total': time.time() - t_start}
+        result.timing = {'total': time.perf_counter() - t_start}
     
     return result
 
@@ -968,7 +970,9 @@ def probe_websocket(
         path = f'{path}?{parsed.query}'
 
     result = WSProbeResult(url=url)
-    t_start = time.time()
+    # perf_counter for the same reason as probe_url: elapsed spans only, and
+    # time()'s Windows tick is coarse enough to report a local handshake as 0.0.
+    t_start = time.perf_counter()
     sock: socket.socket | ssl.SSLSocket | None = None
 
     try:
@@ -983,7 +987,7 @@ def probe_websocket(
             sock = ctx.wrap_socket(raw_sock, server_hostname=host)
         else:
             sock = raw_sock
-        t_connected = time.time()
+        t_connected = time.perf_counter()
         result.connected = True
 
         ws_key = base64.b64encode(os.urandom(16)).decode('ascii')
@@ -1005,7 +1009,7 @@ def probe_websocket(
             if not chunk:
                 break
             response += chunk
-        t_handshake = time.time()
+        t_handshake = time.perf_counter()
 
         header_blob = response.split(b'\r\n\r\n', 1)[0]
         lines = header_blob.decode('iso-8859-1', errors='replace').split('\r\n')
@@ -1043,16 +1047,16 @@ def probe_websocket(
 
         if result.handshake_ok and send_message:
             sock.sendall(_ws_encode_frame(send_message.encode('utf-8')))
-            t_sent = time.time()
+            t_sent = time.perf_counter()
             frame = _ws_decode_frame(sock, timeout)
             if frame is not None:
                 _opcode, payload = frame
                 result.frames_received.append(payload)
-                result.timing['time_to_first_frame'] = time.time() - t_sent
+                result.timing['time_to_first_frame'] = time.perf_counter() - t_sent
 
     except (OSError, ssl.SSLError) as e:
         result.error = str(e)
-        result.timing.setdefault('total_to_handshake', time.time() - t_start)
+        result.timing.setdefault('total_to_handshake', time.perf_counter() - t_start)
     finally:
         if sock is not None:
             try:
