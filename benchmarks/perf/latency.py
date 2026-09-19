@@ -25,6 +25,7 @@ import httpx
 import redis
 
 from benchmarks.metrics import quantile
+from benchmarks.provenance import stamp
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "benchmarks" / "results" / "perf.json"
@@ -194,6 +195,7 @@ def main() -> None:
     scan = scan_throughput(zanbil)
     if scan is not None:
         result["scan_throughput"] = scan
+    result["provenance"] = stamp()
     OUT.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
     print(f"wrote {OUT}")

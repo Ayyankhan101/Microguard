@@ -45,6 +45,7 @@ from benchmarks.detectors import (
     ua_regex,
 )
 from benchmarks.metrics import Rate
+from benchmarks.provenance import stamp
 from microguard.evaluate import PROBE_PREFIXES
 from microguard.parser import parse_nginx_line
 
@@ -389,6 +390,7 @@ def run() -> None:
                 }
             print(day, test, len(present), flush=True)
         results[day] = day_out
+    results["provenance"] = stamp()
     (RESULTS / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
 

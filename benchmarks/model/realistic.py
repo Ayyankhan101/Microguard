@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 
 from benchmarks.metrics import Rate, average_precision, bootstrap_interval, roc_auc
+from benchmarks.provenance import stamp
 from microguard.model import BotDetector
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -140,6 +141,7 @@ def run() -> dict:
 def main() -> None:
     result = run()
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    result["provenance"] = stamp()
     OUT.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
     print(f"train {result['train']['rows']} rows, test {result['test']['rows']} "
           f"({result['test']['rows'] - result['test']['bots']} human, "
