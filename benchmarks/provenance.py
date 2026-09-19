@@ -90,12 +90,17 @@ def describe(results: dict[str, dict | None]) -> str:
         return ""
 
     lines = ["## How current these numbers are", ""]
-    if head:
-        lines += [
-            (f"Rendered at `{head[:12]}`. Each suite records the commit it ran "
-             "against, so this section is derived, not asserted."),
-            "",
-        ]
+    # Deliberately NOT "rendered at <sha>". That line changed on every commit,
+    # so the committed report showed a diff whenever anything else merged and
+    # was stale the moment it did -- churn with no reader value, since anyone
+    # reading the file can already see which commit they are on. What carries
+    # information is the COMPARISON below, not the renderer's own hash.
+    lines += [
+        ("Each suite records the commit it ran against, and this section "
+         "compares those records to the checkout being rendered. Derived, not "
+         "asserted."),
+        "",
+    ]
 
     if stale:
         lines.append(

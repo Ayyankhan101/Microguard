@@ -218,7 +218,7 @@ Trained on 1463 live per-request vectors from seeds [1, 2], levels ['L0', 'L1', 
 
 ## How current these numbers are
 
-Rendered at `6a1932fa1187`. Each suite records the commit it ran against, so this section is derived, not asserted.
+Each suite records the commit it ran against, and this section compares those records to the checkout being rendered. Derived, not asserted.
 
 **Provenance unknown:** `Suite A (evasion ladder)`, `Suite B (Zanbil)`, `Suite C (performance)`, `Suite D (model track)`. These ran before the suites recorded a commit, so whether they match the current code cannot be determined from the result files.
 
