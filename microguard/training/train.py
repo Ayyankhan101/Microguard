@@ -17,7 +17,7 @@ from micrograd.nn import MLP
 
 from microguard.features import extract_features, group_into_sessions
 from microguard.labeler import label_session
-from microguard.model import BotDetector
+from microguard.model import SHIPPED_MODEL_DIR, BotDetector
 from microguard.parser import LogEntry, parse_file
 from microguard.training.generate import generate_stealthy_bot_session
 
@@ -445,23 +445,36 @@ def default_data_dir() -> str:
     return os.path.join(os.path.dirname(os.path.dirname(here)), 'data')
 
 
-def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 0.05):
+def main(data_dir: str | None = None, epochs: int = 100,
+         learning_rate: float = 0.05, model_dir: str | None = None):
     """Main training entry point.
 
     Args:
-        data_dir: Where to read datasets from and write the model to. Defaults
-            to the repo's data/ directory. Parameterized so the dataset-priority
-            dispatch below can be exercised against a temporary directory — a
-            test that ran this against the real data/ would overwrite the
-            shipped model.json, normalization.json and both eval sets.
+        data_dir: Where to read datasets from and write the eval sets to.
+            Defaults to the repo's data/ directory. Parameterized so the
+            dataset-priority dispatch below can be exercised against a
+            temporary directory — a test that ran this against the real data/
+            would overwrite the shipped model.json, normalization.json and both
+            eval sets.
         epochs: Training epochs. Lower it for a smoke run.
         learning_rate: SGD learning rate.
+        model_dir: Where to write model.json and normalization.json. Defaults
+            to SHIPPED_MODEL_DIR inside the package, because a retrained
+            baseline IS the shipped artifact and the package is the only place
+            it can live and still reach a `pip install`. Training DATASETS stay
+            in data/ and are not shipped, which is why the two directories
+            split. When a caller passes data_dir (a test), the model follows it
+            so nothing writes into the package during a test run.
     """
     # Not exercised in tests on purpose: taking this branch means training
     # against the real data/ and overwriting the shipped model. The resolution
     # itself is covered via default_data_dir().
     if data_dir is None:  # pragma: no cover
         data_dir = default_data_dir()
+        if model_dir is None:
+            model_dir = SHIPPED_MODEL_DIR
+    if model_dir is None:
+        model_dir = data_dir
 
     group_ids = None
     provenance = None
@@ -537,7 +550,8 @@ def main(data_dir: str | None = None, epochs: int = 100, learning_rate: float = 
         print(f"   Generated {len(features)} synthetic samples")
     
     # Train model
-    model_path = os.path.join(data_dir, 'model.json')
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, 'model.json')
 
     model, _ = train_model(
         features=features,

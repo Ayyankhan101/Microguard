@@ -11,7 +11,7 @@ you would rather keep filtering at the proxy, see
 
 - Redis reachable from your application process
 - `pip install 'microguard[live,fastapi]'` or `pip install 'microguard[live,flask]'`
-- A trained model at `data/model.json` (ships with the repo)
+- A trained model at `microguard/data/model.json` (ships inside the package, so a `pip install` has it)
 
 ## Steps
 

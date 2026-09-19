@@ -220,7 +220,7 @@ Two different things, and they behave differently.
 baseline once, in its constructor.
 
 ```bash
-python -m microguard.training.train   # writes data/model.json
+python -m microguard.training.train   # writes microguard/data/model.json
 # nothing changes yet
 microguard serve                      # restart: now it is in use
 ```
@@ -251,7 +251,7 @@ microguard dashboard --deployment-id prod
 
 `retrain` refuses rather than crashing when the data will not support it: fewer
 than 50 confirmed corrections, or more than 90% of them one class. Both print
-what would change the answer. The shipped `data/model.json` is never written by
+what would change the answer. The shipped `microguard/data/model.json` is never written by
 any of this — rolling back is deleting one file.
 
 Confirm the new model is live by watching `model_score` move on the dashboard,

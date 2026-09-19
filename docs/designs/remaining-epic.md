@@ -233,12 +233,12 @@ else. Then the 7A check: `curl` a hash from an IP with no session history and
 assert it is not recorded.
 
 **M3.** Record 50 balanced corrections, run `microguard retrain`, assert
-`data/model.json` is byte-identical afterwards, and that the deployment model
+`microguard/data/model.json` is byte-identical afterwards, and that the deployment model
 scores better on that deployment's pattern than the baseline. Then corrupt the
 deployment model file and confirm the scorer keeps the previous model and says
 so in health — rather than silently dropping to heuristics.
 
-The single most important assertion across all three: `data/model.json` is never
+The single most important assertion across all three: `microguard/data/model.json` is never
 written by anything in `online_update.py`.
 
 ## Scope expansion decisions
@@ -339,7 +339,7 @@ above. JSONL artifact:
 - [x] **T15 (P1, human: ~1.5d / CC: ~30min)** — training — `record_correction` + `retrain_deployment_model` with rails and atomic `os.replace`
   - Surfaced by: Section 2, decision 6A — a crash mid-write leaves a partial file the mtime watcher will load
   - Files: `microguard/training/online_update.py`
-  - Verify: `data/model.json` byte-identical after a retrain; bad JSONL lines skipped and counted
+  - Verify: `microguard/data/model.json` byte-identical after a retrain; bad JSONL lines skipped and counted
 - [x] **T16 (P1, human: ~1d / CC: ~20min)** — scorer — Deployment-model selection; refuse a bad swap and keep the previous model; mtime cached 5s
   - Surfaced by: Section 2 CRITICAL GAP + Section 7 — corrupt model currently degrades to heuristics silently
   - Files: `microguard/live/scorer.py`

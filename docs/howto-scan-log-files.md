@@ -190,7 +190,7 @@ If you see that, parsing, features, rules and the model are all working.
 against nginx combined format, or pass `--format json` explicitly. A custom
 `log_format` in nginx is the usual cause.
 
-**`📋 No pre-trained model found, using heuristic rules`** — `data/model.json` is
+**`📋 No pre-trained model found, using heuristic rules`** — `microguard/data/model.json` is
 missing, so every score is rules-only and `model_score` is 0.00 throughout.
 Scores are still produced; they are just weaker. See
 [retraining](howto-retrain-the-model.md).
