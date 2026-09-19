@@ -1,21 +1,44 @@
 """The training set must not hand the model the answer.
 
-The shipped model is a two-value step function: 413 of 623 held-out sessions
-score exactly 0.731, which is `sigmoid(output bias)` with every hidden unit
-off. It reads one column. `header_consistency_score` is 0.7 for every human
-and 1.0 for every bot, and `features.py`'s `1.0 / len(ua_variants)` can only
-ever produce 1.0, 0.5, 0.333... -- 0.7 is not reachable, so that value came
-from a data generator rather than from the extractor. The 100% held-out
-accuracy in `test_training_quality.py` is measuring the leak.
+The shipped model was a two-value step function: 413 of 623 held-out sessions
+scored exactly 0.731, which is `sigmoid(output bias)` with every hidden unit
+off. It read one column. `header_consistency_score` was 0.7 for every human and
+1.0 for every bot, and `features.py`'s `1.0 / len(ua_variants)` can only ever
+produce 1.0, 0.5, 0.333... -- 0.7 is not reachable, so that value came from a
+data generator rather than from the extractor. The 100% held-out accuracy in
+`test_training_quality.py` was measuring the leak.
 
-The cause is structural, not one bad column. The human class comes from a
-single file (`harvard_training_data.json`), so ANY column constant within it
-is a source fingerprint, and source is 1:1 with label. Ten columns qualify.
+The cause was structural, not one bad column. The human class came from a
+single file (`harvard_training_data.json`), so ANY column constant within it was
+a source fingerprint, and source was 1:1 with label. Ten columns qualified.
 
-These two tests are the guard that makes that unshippable, whatever dataset is
-used later. Both are `xfail(strict=True)` rather than skipped or deleted: they
-describe the state the dataset must reach, and `strict` means CI reports it the
-day real data makes them pass. See docs/explanation-training-data.md.
+These three guards are what makes that unshippable. See
+docs/explanation-training-data.md and docs/results/2026-09-realistic-model.md.
+
+## Why each guard runs twice
+
+Every guard below is parametrized over two datasets, because they answer two
+different questions and only one of them was being asked:
+
+- **builder** -- what `build_realistic_dataset.py` produces RIGHT NOW, built
+  during the test run from `tests/fixtures/zanbil/`. This guards the CODE. It
+  is the half that was missing: these tests used to read whichever dataset file
+  happened to be on disk, so a change to the builder that reintroduced a
+  fingerprint column passed CI indefinitely, until somebody manually
+  regenerated and committed a 2.7 MB artifact. The builder is under active
+  change (the day-based holdout and the normalization rework both rewrite it),
+  which is exactly when a guard that cannot fail is worth nothing.
+
+- **committed** -- `data/realistic_training_data.json`, the file the trainer
+  actually reads. This guards the DATA, and is what these tests always did.
+  Skipped when the file is absent.
+
+The fixture is real Zanbil traffic with the client IPs rewritten, built by
+`scripts/build_zanbil_test_fixture.py`; that script's docstring explains why it
+is sampled rather than invented. It is built with `include_orgx=False`: the
+organization-x rows are bot-only, so they only ever widen the bot side of a
+column, which makes a separability defect HARDER to see, and parsing them costs
+94 seconds against 0.07 for the Zanbil half alone.
 """
 
 import json
@@ -24,11 +47,34 @@ import os
 import pytest
 
 from microguard.features import FEATURE_NAMES
+from microguard.training import build_realistic_dataset
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), 'fixtures', 'zanbil')
 
 
-def _load_training_data():
+@pytest.fixture(scope='module')
+def builder_dataset():
+    """Run the real builder against the committed fixture.
+
+    The paths are module-level constants in the builder, so they are swapped
+    and restored here rather than parameterised -- injecting the condition
+    instead of depending on what happens to be on this machine, since the real
+    Zanbil logs under `benchmarks/data/` are gitignored and absent in CI.
+    """
+    original = (build_realistic_dataset.ZANBIL_DAYS,
+                build_realistic_dataset.ZANBIL_LABELS)
+    build_realistic_dataset.ZANBIL_DAYS = os.path.join(FIXTURE_DIR, 'days')
+    build_realistic_dataset.ZANBIL_LABELS = os.path.join(FIXTURE_DIR, 'labels')
+    try:
+        data = build_realistic_dataset.build_dataset(seed=42, include_orgx=False)
+    finally:
+        (build_realistic_dataset.ZANBIL_DAYS,
+         build_realistic_dataset.ZANBIL_LABELS) = original
+    return data, 'build_realistic_dataset.py (tests/fixtures/zanbil)'
+
+
+def _load_committed():
     """Whichever file `training/train.py` actually trains on.
 
     Mirrors that module's priority order so this tracks reality rather than
@@ -40,7 +86,12 @@ def _load_training_data():
         if os.path.exists(path):
             with open(path, encoding='utf-8') as handle:
                 return json.load(handle), name
-    pytest.skip("no training data found")
+    pytest.skip("no committed training data found")
+
+
+@pytest.fixture(params=['builder', 'committed'])
+def dataset(request, builder_dataset):
+    return builder_dataset if request.param == 'builder' else _load_committed()
 
 
 def _columns_by_class(data):
@@ -57,12 +108,8 @@ def _columns_by_class(data):
 class TestNoColumnIsASourceFingerprint:
     """A column constant within one class identifies the file, not the class."""
 
-    # Passes since realistic_training_data.json: the human class is now real
-    # Zanbil sessions extracted the same way as the bots, so no column is a
-    # single constant across it. Was xfail(strict) while the human class came
-    # from one generated file. See docs/results/2026-09-realistic-model.md.
-    def test_no_column_is_constant_within_a_class(self):
-        data, source = _load_training_data()
+    def test_no_column_is_constant_within_a_class(self, dataset):
+        data, source = dataset
         human, bot = _columns_by_class(data)
 
         offenders = []
@@ -86,12 +133,8 @@ class TestNoColumnIsASourceFingerprint:
 class TestNoColumnPerfectlySeparatesTheClasses:
     """Zero overlap in a real behavioural feature means it is not behavioural."""
 
-    # Passes since realistic_training_data.json: no single feature separates
-    # real humans from real bots without overlap. Was xfail(strict) while
-    # header_consistency_score was 0.7 for every synthetic human and 1.0 for
-    # every bot -- the column the shipped model learned.
-    def test_no_column_separates_the_classes_without_overlap(self):
-        data, source = _load_training_data()
+    def test_no_column_separates_the_classes_without_overlap(self, dataset):
+        data, source = dataset
         human, bot = _columns_by_class(data)
 
         offenders = []
@@ -118,11 +161,8 @@ class TestTheHumanClassHasMoreThanOneSource:
     that generator, however many individual columns get patched.
     """
 
-    # Passes since realistic_training_data.json: the human class is real Zanbil
-    # shopper sessions spread across five distinct collection days, not one
-    # generated file. Was xfail(strict) while every human row was 'harvard_human'.
-    def test_human_rows_come_from_more_than_one_provenance(self):
-        data, source = _load_training_data()
+    def test_human_rows_come_from_more_than_one_provenance(self, dataset):
+        data, source = dataset
         provenance = data.get('provenance')
         if provenance is None:
             pytest.skip(f"{source} carries no provenance breakdown")
@@ -136,3 +176,45 @@ class TestTheHumanClassHasMoreThanOneSource:
             f"the entire human class in {source} comes from {human_sources} "
             "-- any column constant in that source is a label detector"
         )
+
+
+class TestTheGuardsCanActuallyFail:
+    """A guard that cannot fail is the thing this change exists to fix.
+
+    These run the real assertions against a deliberately poisoned copy of the
+    builder's output. Without them, a refactor that quietly stopped comparing
+    columns would leave every test above green and nothing would say so.
+    """
+
+    def test_a_fingerprint_column_is_caught(self, builder_dataset):
+        data, _ = builder_dataset
+        poisoned = {**data, 'features': [list(row) for row in data['features']]}
+        for row, label in zip(poisoned['features'], poisoned['labels']):
+            if float(label) <= 0.5:
+                row[9] = 0.7          # header_consistency_score, the original leak
+
+        human, bot = _columns_by_class(poisoned)
+        caught = (len(set(human[9])) == 1) != (len(set(bot[9])) == 1)
+
+        assert caught, "the constant-column guard no longer detects a fingerprint"
+
+    def test_a_perfectly_separable_column_is_caught(self, builder_dataset):
+        data, _ = builder_dataset
+        poisoned = {**data, 'features': [list(row) for row in data['features']]}
+        for row, label in zip(poisoned['features'], poisoned['labels']):
+            row[9] = 1.0 if float(label) > 0.5 else 0.0
+
+        human, bot = _columns_by_class(poisoned)
+        caught = max(human[9]) < min(bot[9]) or max(bot[9]) < min(human[9])
+
+        assert caught, "the separability guard no longer detects a split column"
+
+    def test_a_single_source_human_class_is_caught(self, builder_dataset):
+        data, _ = builder_dataset
+        labels = [float(lbl) for lbl in data['labels']]
+        poisoned = ['one_generator' if lbl <= 0.5 else prov
+                    for prov, lbl in zip(data['provenance'], labels)]
+
+        human_sources = {p for p, lbl in zip(poisoned, labels) if lbl <= 0.5}
+
+        assert len(human_sources) == 1, "the fixture no longer has a human class"
