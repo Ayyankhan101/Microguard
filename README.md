@@ -462,7 +462,7 @@ results = scan_logfile(
     filepath="access.log",
     fmt="auto",
     threshold=0.7,
-    model_path="data/model.json",
+    model_path="microguard/data/model.json",
 )
 print(f"Bot rate: {results['bot_rate']:.1%}")
 
@@ -477,7 +477,7 @@ results = probe_and_analyze(
 print(f"Score: {results['combined_score']:.2f} ({results['label']})")
 
 # Load and use the model directly
-model = BotDetector("data/model.json")
+model = BotDetector("microguard/data/model.json")
 features = [...]  # 19-dimensional feature vector
 score = model.predict(features)  # 0.0 to 1.0
 ```

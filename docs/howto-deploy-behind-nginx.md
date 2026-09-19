@@ -13,7 +13,7 @@ Flask and you would rather not run a second service, see
 - nginx built with `ngx_http_auth_request_module` (check with `nginx -V 2>&1 | grep auth_request`)
 - Redis reachable from wherever microguard will run
 - `pip install 'microguard[live]'`
-- A trained model at `data/model.json` (ships with the repo)
+- A trained model at `microguard/data/model.json` (ships with the repo)
 
 ## Steps
 

@@ -608,8 +608,22 @@ class TestAPIKeyPatterns:
         assert API_KEY_SCAN_RE.search("/api?key=test")
         assert API_KEY_SCAN_RE.search("/api?token=abc")
         assert API_KEY_SCAN_RE.search("/api?api_key=xyz")
-        assert API_KEY_SCAN_RE.search("/oauth2/token")
+        # A credential in a later parameter counts too.
+        assert API_KEY_SCAN_RE.search("/api?page=2&access_token=xyz")
         assert not API_KEY_SCAN_RE.search("/products")
+
+    def test_auth_shaped_paths_are_not_credential_scanning(self):
+        """Navigation is not an attack.
+
+        These all matched before, so a browser loading one of them once hit
+        1/1 = 100% of the session and rule 11 blocked it at 0.90. Only a
+        credential in the query string is the signal now; brute force against
+        these endpoints is caught by the two repetition branches instead.
+        """
+        for path in ("/signup", "/register", "/forgot-password",
+                     "/oauth2/token", "/oauth/callback?code=abc",
+                     "/authenticate", "/api/v1/auth/session", "/api/v1/login"):
+            assert not API_KEY_SCAN_RE.search(path), path
 
 
 # ===== Rules 15-17: weaker bot signals =====
@@ -884,3 +898,118 @@ class TestEveryRuleIsReachable:
         assert label == 'bot', (
             f"expected the earlier CDN rule to win, got {label!r} via {reason!r}"
         )
+
+
+# ===== Regressions from the 2026-09-19 engineering review =====
+
+class TestBenignTrafficIsNotBlocked:
+    """Ordinary visitors that the rule chain blocked, each verified by probe.
+
+    Every case here returned a bot verdict at or above the 0.85 live threshold
+    on main at 6a1932f, so a deployment blocked the visitor. They are grouped
+    because they share one cause: a rule matching a URL substring with no check
+    on what share of the session matched and no floor on session size.
+
+    These assert the benign direction, which is what the suite was missing --
+    it had 100% statement coverage over these rules while every one of them was
+    wrong, because each test asserted only the attack side.
+    """
+
+    BLOCK_THRESHOLD = 0.85
+
+    def _assert_not_blocked(self, session):
+        label, confidence, reason = label_session(session)
+        assert not (label == 'bot' and confidence > self.BLOCK_THRESHOLD), (
+            f"blocked a real visitor: {label} {confidence} via {reason!r}"
+        )
+
+    def test_a_browser_on_signup_is_not_credential_scanning(
+            self, make_entry, make_session):
+        """Rule 11. /signup was in API_KEY_SCAN_PATTERNS, so one request to it
+        was 1/1 = 100% of the session, over the 0.5 ratio, returning 0.90."""
+        for path in ("/signup", "/register", "/forgot-password",
+                     "/oauth/callback?code=abc"):
+            session = _session(make_entry, make_session, count=1, ua=BROWSER_UA,
+                               url=path, referer="https://example.com/")
+            self._assert_not_blocked(session)
+
+    def test_a_wordpress_visitor_is_not_a_vulnerability_scanner(
+            self, make_entry, make_session):
+        """Rule 2. /wp-content is where WordPress serves every theme
+        stylesheet and upload, and one hit returned 0.95."""
+        paths = ["/", "/about/", "/wp-content/themes/twenty/style.css",
+                 "/wp-content/uploads/2024/hero.jpg", "/contact/"]
+        session = _session(make_entry, make_session, count=len(paths),
+                           ua=BROWSER_UA, url=lambda i: paths[i],
+                           referer="https://example.com/")
+        self._assert_not_blocked(session)
+
+    def test_a_php_site_reader_is_not_a_botnet(self, make_entry, make_session):
+        """Rule 7. BOTNET_URL_PATTERNS held an unanchored r'\\.php$', so every
+        page of a phpBB or MediaWiki site counted as an IoT probe at 0.88."""
+        paths = ["/index.php", "/viewforum.php", "/viewtopic.php", "/posting.php"]
+        session = _session(make_entry, make_session, count=len(paths),
+                           ua=BROWSER_UA, url=lambda i: paths[i],
+                           referer="https://example.com/")
+        self._assert_not_blocked(session)
+
+    def test_advanced_search_is_not_a_botnet_probe(self, make_entry, make_session):
+        """Rule 7. r'/adv' was an unanchored substring, so /advanced-search and
+        /advertising matched a Mirai router endpoint."""
+        paths = ["/", "/advanced-search", "/advertising", "/results"]
+        session = _session(make_entry, make_session, count=len(paths),
+                           ua=BROWSER_UA, url=lambda i: paths[i],
+                           referer="https://example.com/")
+        self._assert_not_blocked(session)
+
+    def test_a_late_night_shopper_is_not_a_bot(self, make_entry, make_session):
+        """Rule 13. It counted raw requests while rules 5, 7 and 12 counted
+        pages, so one rich page loaded at 03:00 read as 35 requests."""
+        night = BASE_TIME.replace(hour=3)
+        # Uneven gaps, or rule 3 (uniform timing, 0.90) wins first and this
+        # test passes without ever reaching rule 13. See this module's docstring.
+        stamps = [night + (t - BASE_TIME) for t in _varied(35, base=7.5)]
+        entries = [make_entry(ip="10.0.0.7", user_agent=BROWSER_UA,
+                              timestamp=stamps[i],
+                              url="/product/42" if i == 0 else f"/image/{i}/thumb",
+                              referer="https://example.com/")
+                   for i in range(35)]
+        session = make_session("10.0.0.7", BROWSER_UA, entries)
+
+        label, _confidence, reason = label_session(session)
+
+        assert label == 'human', f"labelled {label!r} via {reason!r}"
+
+
+class TestAssetShapedScrapesAreStillCaught:
+    """The other half of the asset fix: a scrape hiding in asset-shaped URLs.
+
+    STATIC_ASSET_RE matches `.json$` and the segments /media/, /uploads/, /cdn/
+    and /static/, so a scrape of those has page_like_count == 0 and rules 5, 7
+    and 12 all read an empty session. It then reached the human rules, and
+    scoring.py caps a human verdict's blended score at 1 - confidence, which
+    made a 3,000-request scrape unblockable at any model score.
+    """
+
+    def test_an_asset_shaped_scrape_trips_the_raw_volume_backstop(
+            self, make_entry, make_session):
+        session = _session(make_entry, make_session, count=2001, ua=BROWSER_UA,
+                           url=lambda i: f"/api/v1/item{i}.json",
+                           referer="https://example.com/")
+
+        label, confidence, reason = label_session(session)
+
+        assert label == 'bot'
+        assert confidence == 0.90
+        assert 'extremely high raw request count' in reason
+
+    def test_a_session_at_the_bound_is_still_allowed(
+            self, make_entry, make_session):
+        """2000 is the bound, and real human sessions reach 1497 requests."""
+        session = _session(make_entry, make_session, count=2000, ua=BROWSER_UA,
+                           url=lambda i: f"/api/v1/item{i}.json",
+                           referer="https://example.com/")
+
+        _label, _confidence, reason = label_session(session)
+
+        assert 'extremely high raw request count' not in reason

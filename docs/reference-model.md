@@ -9,7 +9,7 @@ that the session is a bot. It contributes 60% of every blended score; the
 ```python
 from microguard.model import BotDetector
 
-detector = BotDetector("data/model.json")   # loads weights AND normalization
+detector = BotDetector("microguard/data/model.json")   # loads weights AND normalization
 score = detector.predict(features)          # 0.0 .. 1.0
 ```
 
@@ -54,8 +54,11 @@ you get random weights — useful for training, useless for scoring.
 | `load` | `(filepath: str)` | Loads weights **and** `normalization.json` beside them |
 | `sigmoid` | `(x: float) -> float` static | Clamped to ±500 |
 
-`DEFAULT_MODEL_PATH` resolves to `data/model.json` relative to the installed
-package.
+`DEFAULT_MODEL_PATH` resolves to `model.json` inside the installed package, via
+`importlib.resources`, so it is present in a wheel and not only in a source
+checkout. It previously pointed one directory *above* the package, which no
+packaging metadata carried, so every `pip install` silently ran heuristics
+only.
 
 **`predict()` is read-only and thread-safe.** It only reads parameters — verified
 with 40 concurrent predictions returning identical results with parameters and
@@ -147,7 +150,7 @@ python -c "
 import json
 from microguard.model import BotDetector
 
-d = BotDetector('data/model.json')
+d = BotDetector('microguard/data/model.json')
 data = json.load(open('data/eval_holdout.json'))
 scores = d.predict_batch(data['features'])
 tp = sum(1 for s, y in zip(scores, data['labels']) if s > 0.5 and y > 0.5)
