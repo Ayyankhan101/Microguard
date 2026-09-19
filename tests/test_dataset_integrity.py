@@ -43,6 +43,7 @@ column, which makes a separability defect HARDER to see, and parsing them costs
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -62,6 +63,22 @@ def builder_dataset():
     instead of depending on what happens to be on this machine, since the real
     Zanbil logs under `benchmarks/data/` are gitignored and absent in CI.
     """
+    # Fail loudly and specifically. `.gitignore`'s `*.log` silently dropped the
+    # fixture's day logs from the commit that added it, so CI had the labels and
+    # none of the traffic they describe: 12 matrix jobs failed on a fixture that
+    # worked perfectly on the machine that generated it. A missing fixture is a
+    # packaging mistake, not a reason to skip.
+    missing = [str(p) for p in (Path(FIXTURE_DIR) / 'days',
+                                Path(FIXTURE_DIR) / 'labels')
+               if not any(p.glob('*')) ]
+    assert not missing, (
+        "the committed Zanbil fixture is incomplete: "
+        + ", ".join(missing)
+        + ". Check `git ls-files tests/fixtures/zanbil` -- .gitignore's *.log "
+          "rule has dropped the day logs before. Regenerate with "
+          "`python scripts/build_zanbil_test_fixture.py`."
+    )
+
     original = (build_realistic_dataset.ZANBIL_DAYS,
                 build_realistic_dataset.ZANBIL_LABELS)
     build_realistic_dataset.ZANBIL_DAYS = os.path.join(FIXTURE_DIR, 'days')
