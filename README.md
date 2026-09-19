@@ -738,14 +738,19 @@ on real data, but it has not been adversarially tested. Specifically:
   strong against evasive-but-noisy bots and blind to the low-and-slow distributed
   case. The old synthetic `data/adversarial_eval.json` number is superseded by
   this; treat the ladder as the reference.
-- **The model now trains on real human traffic.** It used to learn the human
-  class from one file whose feature columns were constant placeholders — a leak
-  that made the shipped model score **ROC-AUC 0.34 on real traffic** (worse than
-  chance). The human class is now real Zanbil shopper sessions extracted the
-  same way as the bots; on held-out real traffic the model scores **AUC 0.97,
-  catching 70% of real bots at zero human false positives**, and the three
-  dataset-integrity leakage guards now pass. Full account, with caveats (proxy
-  labels, one e-commerce site, an offline-scan-first model):
+- **The model now trains on real human traffic, and its reported accuracy has
+  been withdrawn.** It used to learn the human class from one file whose feature
+  columns were constant placeholders — a leak that made the shipped model score
+  **ROC-AUC 0.34 on real traffic** (worse than chance). The human class is now
+  real Zanbil shopper sessions extracted the same way as the bots, and the three
+  dataset-integrity leakage guards pass. **The AUC 0.97 this section used to
+  claim has been retracted**: that number came from a model trained on the days
+  it was reported as held out from, and the class labels are a user-agent
+  substring test that a one-line check beats at the same operating point
+  (78.2% vs 69.9% recall at zero human false positives, both measured on the
+  same rows). A corrected number is pending an honest day-based split with a
+  recorded seed. The full account, and why the review that found this is the
+  more interesting result:
   [A realistic model, trained on real human traffic](docs/results/2026-09-realistic-model.md).
 - **gRPC and webhook traffic are labeled `automated-integration`, not
   bot/human.** Correct in spirit (neither has a human operator), but it

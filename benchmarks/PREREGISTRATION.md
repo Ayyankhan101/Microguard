@@ -208,3 +208,34 @@ Informational, no pass/fail. The one reference target is the existing how-to's
   does, it is reported and the model is also trained without it.
 
 Replacing `data/model.json` is out of scope whatever the result.
+
+## Deviations from this pre-registration
+
+This document states at the top that anything changed later is listed under
+"Deviations". Two commitments above were broken and the report did not record
+either. Both are listed here, and in
+[the report](../docs/results/2026-09-benchmark.md), as of 2026-09-20.
+
+1. **`data/model.json` was replaced** (commit `072616a`), against the line
+   immediately above this section. The retrained model became the shipped
+   artifact, and the report's headline was rewritten around it. That is the
+   opposite of "out of scope whatever the result": the result was good, so the
+   constraint was dropped.
+
+2. **Zanbil is now the model's training set, and still evaluates it.**
+   Suite B's leakage exclusions promise Zanbil is used "**only** for
+   rule/baseline/offline-scan detectors, never to evaluate the model". But
+   `benchmarks/detectors.py:324-326` shows the offline-scan detector *is* the
+   model — `scan_logfile(..., model_path=model_path or DEFAULT_MODEL_PATH)` —
+   and `microguard/training/build_realistic_dataset.py` now draws the training
+   set from Zanbil. So `mg_scan` in every Suite B table evaluates the model on
+   its own training data.
+
+A third item is not a deviation from this document but undermines Suite D's
+leakage guard as written. The guard asks whether any feature "separates the
+classes perfectly with a single threshold". `ua_category` does not separate them
+perfectly, so it passes — while carrying a single-feature ROC-AUC of **0.8871**
+on the held-out days, because the class labels are themselves a user-agent
+substring test (`benchmarks/public/zanbil.py:75`). A perfect-separation test
+cannot detect a label defined by a feature. Any future revision of this
+pre-registration should test single-feature AUC, not just separability.
